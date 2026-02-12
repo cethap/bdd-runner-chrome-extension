@@ -18,7 +18,6 @@ export class ResultsPanel {
   }
 
   show(): void {
-    this.container.classList.add("visible");
     this.container.innerHTML = "";
 
     this.headerEl = document.createElement("div");
@@ -28,12 +27,6 @@ export class ResultsPanel {
     title.textContent = "Results";
     this.headerEl.appendChild(title);
 
-    const closeBtn = document.createElement("button");
-    closeBtn.className = "results-close";
-    closeBtn.textContent = "\u2715";
-    closeBtn.addEventListener("click", () => this.hide());
-    this.headerEl.appendChild(closeBtn);
-
     this.container.appendChild(this.headerEl);
 
     this.listEl = document.createElement("div");
@@ -42,7 +35,7 @@ export class ResultsPanel {
   }
 
   hide(): void {
-    this.container.classList.remove("visible");
+    // No-op — tab switching handles visibility
   }
 
   clear(): void {

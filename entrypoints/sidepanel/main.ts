@@ -5,6 +5,9 @@ import { ResultsPanel } from "./components/ResultsPanel";
 import { StatusBar } from "./components/StatusBar";
 import { FileManager } from "./components/FileManager";
 import { ScriptManager } from "./components/ScriptManager";
+import { ScenariosPanel } from "./components/ScenariosPanel";
+import type { ScenarioItem } from "./components/ScenariosPanel";
+import { parseGherkin } from "@/lib/parser/gherkin-parser";
 import { IpcClient } from "@/lib/ipc/client";
 import { Store } from "@/lib/store/store";
 import {
@@ -41,7 +44,33 @@ const store = new Store<AppState>(initialState);
 const ipc = new IpcClient();
 ipc.connect();
 
-// Components
+// ── Tab switching ──────────────────────────────────────────
+
+const tabButtons = document.querySelectorAll<HTMLButtonElement>(".tab-btn");
+const tabContents = document.querySelectorAll<HTMLElement>(".tab-content");
+
+function switchTab(tabName: string) {
+  tabButtons.forEach((btn) => {
+    btn.classList.toggle("active", btn.dataset.tab === tabName);
+  });
+  tabContents.forEach((content) => {
+    content.classList.toggle("active", content.id === `tab-${tabName}`);
+  });
+
+  // Refresh scenarios when switching to that tab
+  if (tabName === "scenarios") {
+    scenariosPanel.loadFiles(store.getState().files);
+  }
+}
+
+tabButtons.forEach((btn) => {
+  btn.addEventListener("click", () => {
+    switchTab(btn.dataset.tab!);
+  });
+});
+
+// ── Components ─────────────────────────────────────────────
+
 const editor = new Editor(document.getElementById("editor")!);
 const resultsPanel = new ResultsPanel(document.getElementById("results-panel")!);
 const statusBar = new StatusBar(document.getElementById("status-bar")!);
@@ -58,20 +87,82 @@ const scriptManager = new ScriptManager(document.getElementById("script-manager"
   },
 });
 
+// ── Helper: build feature source from scenario items ───────
+
+function buildFeatureSource(items: ScenarioItem[]): string {
+  // Merge all scenarios into one feature (parser only supports 1 feature per source)
+  const parts: string[] = [];
+  parts.push(`Feature: Test Suite\n`);
+  for (const item of items) {
+    parts.push(`  Scenario: ${item.scenario.name}`);
+    for (const step of item.scenario.steps) {
+      const docString = step.docString ? `\n      """\n${step.docString}\n      """` : "";
+      parts.push(`    ${step.keyword} ${step.text}${docString}`);
+    }
+    parts.push("");
+  }
+
+  return parts.join("\n");
+}
+
+function startExecution(source: string) {
+  store.setState({
+    status: "running",
+    stepResults: [],
+    featureResult: null,
+    error: null,
+  });
+  resultsPanel.show();
+  resultsPanel.clear();
+  statusBar.setStatus("running");
+  statusBar.clearStats();
+  switchTab("results");
+  ipc.send({ type: "execute", source });
+}
+
+// ── Scenarios Panel ────────────────────────────────────────
+
+const scenariosPanel = new ScenariosPanel(document.getElementById("scenarios-panel")!, {
+  onRunAll: () => {
+    // Parse all files into scenario items and run them all
+    const files = store.getState().files;
+    const allItems: ScenarioItem[] = [];
+    for (const file of files) {
+
+      const result = parseGherkin(file.content);
+      if (!result.ok) continue;
+      for (const scenario of result.feature.scenarios) {
+        allItems.push({
+          fileId: file.id,
+          fileName: file.name,
+          featureName: result.feature.name,
+          scenario,
+          selected: true,
+        });
+      }
+    }
+    const source = buildFeatureSource(allItems);
+    startExecution(source);
+  },
+  onRunSelected: (items: ScenarioItem[]) => {
+    const source = buildFeatureSource(items);
+    startExecution(source);
+  },
+  onRunSingle: (item: ScenarioItem) => {
+    const source = buildFeatureSource([item]);
+    startExecution(source);
+  },
+  onStop: () => {
+    ipc.send({ type: "cancel" });
+  },
+});
+
+// ── Toolbar (Editor tab) ───────────────────────────────────
+
 const toolbar = new Toolbar(document.getElementById("toolbar")!, {
   onRun: () => {
     const content = editor.getContent();
-    store.setState({
-      status: "running",
-      stepResults: [],
-      featureResult: null,
-      error: null,
-    });
-    resultsPanel.show();
-    resultsPanel.clear();
-    statusBar.setStatus("running");
-    statusBar.clearStats();
-    ipc.send({ type: "execute", source: content });
+    startExecution(content);
   },
   onStop: () => {
     ipc.send({ type: "cancel" });
@@ -80,7 +171,13 @@ const toolbar = new Toolbar(document.getElementById("toolbar")!, {
     const state = store.getState();
     const content = editor.getContent();
     const name = state.currentFileName;
-    const file = await saveFeatureFile(name, content, state.currentFileId ?? undefined);
+    // If no file ID tracked, try to find existing file by name to avoid duplicates
+    let fileId = state.currentFileId;
+    if (!fileId) {
+      const existing = state.files.find((f) => f.name === name);
+      if (existing) fileId = existing.id;
+    }
+    const file = await saveFeatureFile(name, content, fileId ?? undefined);
     store.setState({
       currentFileId: file.id,
       currentFileName: file.name,
@@ -112,6 +209,8 @@ const toolbar = new Toolbar(document.getElementById("toolbar")!, {
   },
 });
 
+// ── File Manager ───────────────────────────────────────────
+
 const fileManager = new FileManager(document.getElementById("file-manager")!, {
   onFileSelect: (file: FeatureFile) => {
     editor.setContent(file.content);
@@ -141,7 +240,8 @@ const fileManager = new FileManager(document.getElementById("file-manager")!, {
   },
 });
 
-// IPC message handling
+// ── IPC message handling ───────────────────────────────────
+
 ipc.onMessage((msg) => {
   switch (msg.type) {
     case "execute:start":
@@ -158,6 +258,7 @@ ipc.onMessage((msg) => {
     case "execute:done":
       store.setState({ status: "done", featureResult: msg.result });
       toolbar.setRunning(false);
+      scenariosPanel.setRunning(false);
       statusBar.setStatus("done");
       statusBar.setStats(
         msg.result.stats.passed,
@@ -171,21 +272,25 @@ ipc.onMessage((msg) => {
     case "execute:error":
       store.setState({ status: "error", error: msg.error });
       toolbar.setRunning(false);
+      scenariosPanel.setRunning(false);
       statusBar.setStatus("error");
       break;
 
     case "execute:cancelled":
       store.setState({ status: "cancelled" });
       toolbar.setRunning(false);
+      scenariosPanel.setRunning(false);
       statusBar.setStatus("cancelled");
       break;
 
     case "parse:error":
       store.setState({ status: "error", error: msg.errors.map((e) => e.message).join("\n") });
       toolbar.setRunning(false);
+      scenariosPanel.setRunning(false);
       statusBar.setStatus("error");
       resultsPanel.show();
       resultsPanel.clear();
+      switchTab("results");
       for (const err of msg.errors) {
         resultsPanel.addStepResult({
           step: { keyword: "Parse Error", text: err.message, line: err.line },
@@ -219,18 +324,21 @@ ipc.onMessage((msg) => {
   }
 });
 
-// Editor change tracking
+// ── Editor change tracking ─────────────────────────────────
+
 editor.onChange((content) => {
   store.setState({ content, dirty: true });
 });
 
-// Store subscriptions for toolbar state
+// ── Store subscriptions ────────────────────────────────────
+
 store.subscribe((state) => {
   toolbar.setRunning(state.status === "running");
   toolbar.setFileName(state.currentFileName, state.dirty);
 });
 
-// Load saved files
+// ── Load saved files ───────────────────────────────────────
+
 async function refreshFiles() {
   const files = await loadFeatureFiles();
   store.setState({ files });

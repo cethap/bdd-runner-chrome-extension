@@ -8,15 +8,35 @@
   </head>
   <body>
     <div id="app">
-      <header id="toolbar"></header>
-      <main id="main-content">
-        <aside id="file-manager"></aside>
-        <div id="editor-container">
-          <div id="editor"></div>
-        </div>
-      </main>
-      <section id="script-manager"></section>
-      <section id="results-panel"></section>
+      <!-- Tab Bar -->
+      <nav id="tab-bar">
+        <button class="tab-btn active" data-tab="editor">Editor</button>
+        <button class="tab-btn" data-tab="scenarios">Scenarios</button>
+        <button class="tab-btn" data-tab="results">Results</button>
+      </nav>
+
+      <!-- Editor Tab -->
+      <div id="tab-editor" class="tab-content active">
+        <header id="toolbar"></header>
+        <main id="main-content">
+          <aside id="file-manager"></aside>
+          <div id="editor-container">
+            <div id="editor"></div>
+          </div>
+        </main>
+        <section id="script-manager"></section>
+      </div>
+
+      <!-- Scenarios Tab -->
+      <div id="tab-scenarios" class="tab-content">
+        <div id="scenarios-panel"></div>
+      </div>
+
+      <!-- Results Tab -->
+      <div id="tab-results" class="tab-content">
+        <section id="results-panel"></section>
+      </div>
+
       <footer id="status-bar"></footer>
     </div>
     <script type="module" src="./main.ts"></script>
