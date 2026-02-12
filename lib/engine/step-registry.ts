@@ -15,6 +15,10 @@ export class StepRegistry {
     return this.definitions;
   }
 
+  unregisterBySource(source: string): void {
+    this.definitions = this.definitions.filter((d) => d.source !== source);
+  }
+
   clear(): void {
     this.definitions = [];
   }

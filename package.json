@@ -24,6 +24,8 @@
     "@cucumber/gherkin": "^38.0.0",
     "@cucumber/messages": "^32.0.1",
     "@lezer/highlight": "^1.2.3",
+    "fengari": "^0.1.5",
+    "fengari-interop": "^0.1.4",
     "wxt": "^0.20.15"
   },
   "devDependencies": {

@@ -57,6 +57,7 @@ export type StepDefinition = {
   pattern: RegExp;
   handler: StepHandler;
   description?: string;
+  source?: string;
 };
 
 export type ExecutionContext = {
@@ -69,4 +70,9 @@ export type ExecutionContext = {
   response: HttpResponse | null;
   prints: string[];
   signal: AbortSignal;
+};
+
+export type ExecutionHooks = {
+  beforeScenario?(ctx: ExecutionContext): Promise<void>;
+  afterScenario?(ctx: ExecutionContext): Promise<void>;
 };

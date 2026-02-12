@@ -4,6 +4,7 @@ export type ToolbarCallbacks = {
   onSave: () => void;
   onNewFile: () => void;
   onToggleFiles: () => void;
+  onToggleScripts: () => void;
 };
 
 export class Toolbar {
@@ -21,6 +22,9 @@ export class Toolbar {
   private render(cb: ToolbarCallbacks): void {
     const filesBtn = this.createButton("Files", "toolbar-btn", cb.onToggleFiles);
     this.container.appendChild(filesBtn);
+
+    const scriptsBtn = this.createButton("Lua", "toolbar-btn", cb.onToggleScripts);
+    this.container.appendChild(scriptsBtn);
 
     this.container.appendChild(this.createSeparator());
 

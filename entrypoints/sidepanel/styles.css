@@ -331,6 +331,137 @@ body {
   flex-shrink: 0;
 }
 
+/* Script Manager */
+#script-manager {
+  background: var(--bg-secondary);
+  border-top: 1px solid var(--border);
+  max-height: 50%;
+  overflow-y: auto;
+  display: none;
+}
+
+#script-manager.visible {
+  display: flex;
+  flex-direction: column;
+}
+
+.script-manager-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 10px;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--text-muted);
+  border-bottom: 1px solid var(--border);
+  gap: 6px;
+}
+
+.script-manager-header span {
+  flex: 1;
+}
+
+.script-list {
+  padding: 4px 0;
+}
+
+.script-empty {
+  padding: 8px 10px;
+  font-size: 12px;
+  color: var(--text-muted);
+  font-style: italic;
+}
+
+.script-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+.script-item:hover {
+  background: var(--bg-surface);
+}
+
+.script-item input[type="checkbox"] {
+  accent-color: var(--accent);
+  cursor: pointer;
+}
+
+.script-item-name {
+  flex: 1;
+  cursor: pointer;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.script-item-name:hover {
+  color: var(--text-primary);
+}
+
+.script-item-actions {
+  display: none;
+  gap: 2px;
+}
+
+.script-item:hover .script-item-actions {
+  display: flex;
+}
+
+.script-editor {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px 10px;
+  border-top: 1px solid var(--border);
+}
+
+.script-name-input {
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  color: var(--text-primary);
+  font-size: 12px;
+  padding: 4px 8px;
+  font-family: var(--font-sans);
+  outline: none;
+}
+
+.script-name-input:focus {
+  border-color: var(--accent);
+}
+
+.script-code-editor {
+  background: var(--bg-primary);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  color: var(--text-primary);
+  font-size: 12px;
+  font-family: var(--font-mono);
+  padding: 8px;
+  min-height: 100px;
+  max-height: 200px;
+  resize: vertical;
+  outline: none;
+  line-height: 1.5;
+  tab-size: 2;
+}
+
+.script-code-editor:focus {
+  border-color: var(--accent);
+}
+
+.script-editor-actions {
+  display: flex;
+  gap: 6px;
+  justify-content: flex-end;
+}
+
 /* Status bar */
 #status-bar {
   display: flex;

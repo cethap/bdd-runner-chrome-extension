@@ -5,6 +5,7 @@ import type {
   FeatureResult,
   StepStatus,
   ExecutionContext,
+  ExecutionHooks,
 } from "./types";
 import { StepRegistry } from "./step-registry";
 import { matchStep } from "./step-matcher";
@@ -17,6 +18,7 @@ export async function executeFeature(
   registry: StepRegistry,
   signal: AbortSignal,
   onProgress?: StepProgressCallback,
+  hooks?: ExecutionHooks,
 ): Promise<FeatureResult> {
   const start = performance.now();
   const scenarioResults: ScenarioResult[] = [];
@@ -52,6 +54,7 @@ export async function executeFeature(
             signal,
             i,
             onProgress,
+            hooks,
           );
           scenarioResults.push(result);
           if (result.status === "failed") overallStatus = "failed";
@@ -65,6 +68,7 @@ export async function executeFeature(
         signal,
         i,
         onProgress,
+        hooks,
       );
       scenarioResults.push(result);
       if (result.status === "failed") overallStatus = "failed";
@@ -98,11 +102,16 @@ async function executeScenario(
   signal: AbortSignal,
   scenarioIndex: number,
   onProgress?: StepProgressCallback,
+  hooks?: ExecutionHooks,
 ): Promise<ScenarioResult> {
   const start = performance.now();
   const ctx = createExecutionContext(signal);
   const stepResults: StepResult[] = [];
   let scenarioFailed = false;
+
+  if (hooks?.beforeScenario) {
+    await hooks.beforeScenario(ctx);
+  }
 
   const allSteps = [...backgroundSteps, ...scenario.steps];
 
@@ -125,6 +134,10 @@ async function executeScenario(
     if (result.status === "failed") {
       scenarioFailed = true;
     }
+  }
+
+  if (hooks?.afterScenario) {
+    await hooks.afterScenario(ctx);
   }
 
   const duration = performance.now() - start;

@@ -107,6 +107,25 @@ const HTTP_STEP_TEMPLATES: Completion[] = [
     detail: "log value",
     apply: "print response",
   },
+  {
+    label: "eval",
+    type: "function",
+    detail: "execute inline Lua code",
+    apply: 'eval\n  """\n  \n  """',
+  },
+  {
+    label: "script ",
+    type: "function",
+    detail: "run stored Lua script",
+    apply: "script ''",
+  },
+  {
+    label: "def ",
+    type: "variable",
+    detail: "capture Lua return value",
+    apply: 'def result = eval\n  """\n  return \n  """',
+    boost: -1,
+  },
 ];
 
 export function gherkinCompletion(

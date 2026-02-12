@@ -1,11 +1,17 @@
 import type { StepResult, FeatureResult } from "@/lib/engine/types";
 import type { ParseError } from "@/lib/parser/types";
+import type { LuaScript } from "@/lib/lua/types";
 
 // Messages from side panel → background
 export type ClientMessage =
   | { type: "parse"; source: string }
   | { type: "execute"; source: string }
-  | { type: "cancel" };
+  | { type: "cancel" }
+  | { type: "lua:save"; name: string; code: string; id?: string }
+  | { type: "lua:delete"; id: string }
+  | { type: "lua:toggle"; id: string; enabled: boolean }
+  | { type: "lua:list" }
+  | { type: "lua:reload" };
 
 // Messages from background → side panel
 export type ServerMessage =
@@ -15,4 +21,9 @@ export type ServerMessage =
   | { type: "execute:step"; result: StepResult; scenarioIndex: number }
   | { type: "execute:done"; result: FeatureResult }
   | { type: "execute:error"; error: string }
-  | { type: "execute:cancelled" };
+  | { type: "execute:cancelled" }
+  | { type: "lua:list"; scripts: LuaScript[] }
+  | { type: "lua:saved"; script: LuaScript }
+  | { type: "lua:deleted"; id: string }
+  | { type: "lua:toggled"; id: string; enabled: boolean }
+  | { type: "lua:error"; error: string };

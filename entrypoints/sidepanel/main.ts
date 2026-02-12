@@ -4,6 +4,7 @@ import { Toolbar } from "./components/Toolbar";
 import { ResultsPanel } from "./components/ResultsPanel";
 import { StatusBar } from "./components/StatusBar";
 import { FileManager } from "./components/FileManager";
+import { ScriptManager } from "./components/ScriptManager";
 import { IpcClient } from "@/lib/ipc/client";
 import { Store } from "@/lib/store/store";
 import {
@@ -44,6 +45,18 @@ ipc.connect();
 const editor = new Editor(document.getElementById("editor")!);
 const resultsPanel = new ResultsPanel(document.getElementById("results-panel")!);
 const statusBar = new StatusBar(document.getElementById("status-bar")!);
+
+const scriptManager = new ScriptManager(document.getElementById("script-manager")!, {
+  onSave: (name, code, id) => {
+    ipc.send({ type: "lua:save", name, code, id });
+  },
+  onDelete: (id) => {
+    ipc.send({ type: "lua:delete", id });
+  },
+  onToggle: (id, enabled) => {
+    ipc.send({ type: "lua:toggle", id, enabled });
+  },
+});
 
 const toolbar = new Toolbar(document.getElementById("toolbar")!, {
   onRun: () => {
@@ -90,6 +103,12 @@ const toolbar = new Toolbar(document.getElementById("toolbar")!, {
   },
   onToggleFiles: () => {
     fileManager.toggle();
+  },
+  onToggleScripts: () => {
+    scriptManager.toggle();
+    if (document.getElementById("script-manager")!.classList.contains("visible")) {
+      ipc.send({ type: "lua:list" });
+    }
   },
 });
 
@@ -167,7 +186,6 @@ ipc.onMessage((msg) => {
       statusBar.setStatus("error");
       resultsPanel.show();
       resultsPanel.clear();
-      // Show parse errors in results panel
       for (const err of msg.errors) {
         resultsPanel.addStepResult({
           step: { keyword: "Parse Error", text: err.message, line: err.line },
@@ -176,6 +194,27 @@ ipc.onMessage((msg) => {
           duration: 0,
         });
       }
+      break;
+
+    // Lua script management responses
+    case "lua:list":
+      scriptManager.setScripts(msg.scripts);
+      break;
+
+    case "lua:saved":
+      ipc.send({ type: "lua:list" });
+      break;
+
+    case "lua:deleted":
+      ipc.send({ type: "lua:list" });
+      break;
+
+    case "lua:toggled":
+      ipc.send({ type: "lua:list" });
+      break;
+
+    case "lua:error":
+      console.error("[Lua]", msg.error);
       break;
   }
 });

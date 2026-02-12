@@ -1,4 +1,5 @@
 import type { Plugin } from "./plugin-types";
+import type { ExecutionContext } from "@/lib/engine/types";
 import { StepRegistry } from "@/lib/engine/step-registry";
 
 export class PluginManager {
@@ -36,18 +37,18 @@ export class PluginManager {
     this.plugins.delete(id);
   }
 
-  async beforeScenario(): Promise<void> {
+  async beforeScenario(ctx: ExecutionContext): Promise<void> {
     for (const plugin of this.plugins.values()) {
       if (plugin.beforeScenario) {
-        await plugin.beforeScenario();
+        await plugin.beforeScenario(ctx);
       }
     }
   }
 
-  async afterScenario(): Promise<void> {
+  async afterScenario(ctx: ExecutionContext): Promise<void> {
     for (const plugin of this.plugins.values()) {
       if (plugin.afterScenario) {
-        await plugin.afterScenario();
+        await plugin.afterScenario(ctx);
       }
     }
   }

@@ -67,9 +67,9 @@ function resolvePath(obj: unknown, path: string): unknown {
 
 export function getVariableStepDefinitions(): StepDefinition[] {
   return [
-    // def varName = expression
+    // def varName = expression (but not 'eval' - that's handled by lua-steps)
     {
-      pattern: /^def\s+(\w+)\s*=\s*(.+)$/,
+      pattern: /^def\s+(\w+)\s*=\s*(?!eval$)(.+)$/,
       handler: async (ctx, match) => {
         const varName = match.groups[0]!;
         const expr = match.groups[1]!;
