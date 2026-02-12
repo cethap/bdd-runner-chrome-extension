@@ -1,0 +1,33 @@
+{
+  "name": "gherkin-extension",
+  "version": "0.1.0",
+  "description": "Gherkin BDD editor with HTTP execution engine",
+  "type": "module",
+  "scripts": {
+    "dev": "wxt",
+    "build": "wxt build",
+    "zip": "wxt zip",
+    "postinstall": "wxt prepare"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "packageManager": "pnpm@10.29.3",
+  "dependencies": {
+    "@codemirror/autocomplete": "^6.20.0",
+    "@codemirror/commands": "^6.10.2",
+    "@codemirror/language": "^6.12.1",
+    "@codemirror/lint": "^6.9.4",
+    "@codemirror/search": "^6.6.0",
+    "@codemirror/state": "^6.5.4",
+    "@codemirror/view": "^6.39.13",
+    "@cucumber/gherkin": "^38.0.0",
+    "@cucumber/messages": "^32.0.1",
+    "@lezer/highlight": "^1.2.3",
+    "wxt": "^0.20.15"
+  },
+  "devDependencies": {
+    "@types/chrome": "^0.1.36",
+    "typescript": "^5.9.3"
+  }
+}

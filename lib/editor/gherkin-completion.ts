@@ -1,0 +1,152 @@
+import type {
+  Completion,
+  CompletionContext,
+  CompletionResult,
+} from "@codemirror/autocomplete";
+
+const KEYWORDS: Completion[] = [
+  { label: "Feature:", type: "keyword", detail: "top-level feature" },
+  {
+    label: "Background:",
+    type: "keyword",
+    detail: "runs before each scenario",
+  },
+  { label: "Scenario:", type: "keyword", detail: "test scenario" },
+  {
+    label: "Scenario Outline:",
+    type: "keyword",
+    detail: "parameterized scenario",
+  },
+  { label: "Examples:", type: "keyword", detail: "data table for outline" },
+  { label: "Rule:", type: "keyword", detail: "business rule grouping" },
+  { label: "Given ", type: "keyword", detail: "precondition" },
+  { label: "When ", type: "keyword", detail: "action" },
+  { label: "Then ", type: "keyword", detail: "assertion" },
+  { label: "And ", type: "keyword", detail: "continuation" },
+  { label: "But ", type: "keyword", detail: "negative continuation" },
+  { label: '* ', type: "keyword", detail: "generic step" },
+];
+
+const HTTP_STEP_TEMPLATES: Completion[] = [
+  {
+    label: "url '",
+    type: "function",
+    detail: "set base URL",
+    apply: "url 'https://'",
+  },
+  {
+    label: "method GET",
+    type: "function",
+    detail: "HTTP GET request",
+  },
+  {
+    label: "method POST",
+    type: "function",
+    detail: "HTTP POST request",
+  },
+  {
+    label: "method PUT",
+    type: "function",
+    detail: "HTTP PUT request",
+  },
+  {
+    label: "method DELETE",
+    type: "function",
+    detail: "HTTP DELETE request",
+  },
+  {
+    label: "method PATCH",
+    type: "function",
+    detail: "HTTP PATCH request",
+  },
+  {
+    label: "header ",
+    type: "function",
+    detail: "set request header",
+    apply: "header Content-Type = 'application/json'",
+  },
+  {
+    label: "param ",
+    type: "function",
+    detail: "set query parameter",
+    apply: "param key = 'value'",
+  },
+  {
+    label: "request ",
+    type: "function",
+    detail: "set request body",
+    apply: "request {}",
+  },
+  {
+    label: "status ",
+    type: "function",
+    detail: "assert response status",
+    apply: "status 200",
+  },
+  {
+    label: "match response",
+    type: "function",
+    detail: "assert response body",
+    apply: "match response == ",
+  },
+  {
+    label: "match response contains",
+    type: "function",
+    detail: "partial match response",
+    apply: "match response contains ",
+  },
+  {
+    label: "def ",
+    type: "variable",
+    detail: "save variable",
+    apply: "def varName = response.",
+  },
+  {
+    label: "print ",
+    type: "variable",
+    detail: "log value",
+    apply: "print response",
+  },
+];
+
+export function gherkinCompletion(
+  context: CompletionContext,
+): CompletionResult | null {
+  // Match from start of line (after optional whitespace)
+  const lineMatch = context.matchBefore(/^\s*\S*/);
+  if (!lineMatch) return null;
+
+  const trimmed = lineMatch.text.trimStart();
+
+  // Don't complete empty lines if no input
+  if (trimmed.length === 0 && !context.explicit) return null;
+
+  // After a step keyword, offer HTTP step templates
+  const afterKeyword = context.matchBefore(
+    /(?:Given|When|Then|And|But|\*)\s+.*/,
+  );
+  if (afterKeyword) {
+    const stepText = afterKeyword.text.replace(
+      /^(?:Given|When|Then|And|But|\*)\s+/,
+      "",
+    );
+    const from = afterKeyword.from + afterKeyword.text.indexOf(stepText);
+
+    if (stepText.length === 0 && !context.explicit) return null;
+
+    return {
+      from,
+      options: HTTP_STEP_TEMPLATES.filter(
+        (t) =>
+          stepText.length === 0 ||
+          t.label.toLowerCase().startsWith(stepText.toLowerCase()),
+      ),
+    };
+  }
+
+  // At start of line, offer keywords
+  return {
+    from: lineMatch.from + (lineMatch.text.length - trimmed.length),
+    options: KEYWORDS,
+  };
+}

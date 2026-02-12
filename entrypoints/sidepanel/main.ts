@@ -1,0 +1,203 @@
+import "./styles.css";
+import { Editor } from "./components/Editor";
+import { Toolbar } from "./components/Toolbar";
+import { ResultsPanel } from "./components/ResultsPanel";
+import { StatusBar } from "./components/StatusBar";
+import { FileManager } from "./components/FileManager";
+import { IpcClient } from "@/lib/ipc/client";
+import { Store } from "@/lib/store/store";
+import {
+  loadFeatureFiles,
+  saveFeatureFile,
+  deleteFeatureFile,
+  renameFeatureFile,
+} from "@/lib/storage/feature-storage";
+import type { EditorState } from "@/lib/store/slices/editor-slice";
+import type { ExecutionState } from "@/lib/store/slices/execution-slice";
+import type { FilesState } from "@/lib/store/slices/files-slice";
+import type { FeatureFile } from "@/lib/store/slices/files-slice";
+
+type AppState = EditorState & ExecutionState & FilesState;
+
+const initialState: AppState = {
+  currentFileId: null,
+  currentFileName: "untitled.feature",
+  content: "",
+  dirty: false,
+  status: "idle",
+  featureName: "",
+  stepResults: [],
+  featureResult: null,
+  error: null,
+  files: [],
+  loading: false,
+};
+
+// Store
+const store = new Store<AppState>(initialState);
+
+// IPC
+const ipc = new IpcClient();
+ipc.connect();
+
+// Components
+const editor = new Editor(document.getElementById("editor")!);
+const resultsPanel = new ResultsPanel(document.getElementById("results-panel")!);
+const statusBar = new StatusBar(document.getElementById("status-bar")!);
+
+const toolbar = new Toolbar(document.getElementById("toolbar")!, {
+  onRun: () => {
+    const content = editor.getContent();
+    store.setState({
+      status: "running",
+      stepResults: [],
+      featureResult: null,
+      error: null,
+    });
+    resultsPanel.show();
+    resultsPanel.clear();
+    statusBar.setStatus("running");
+    statusBar.clearStats();
+    ipc.send({ type: "execute", source: content });
+  },
+  onStop: () => {
+    ipc.send({ type: "cancel" });
+  },
+  onSave: async () => {
+    const state = store.getState();
+    const content = editor.getContent();
+    const name = state.currentFileName;
+    const file = await saveFeatureFile(name, content, state.currentFileId ?? undefined);
+    store.setState({
+      currentFileId: file.id,
+      currentFileName: file.name,
+      content,
+      dirty: false,
+    });
+    await refreshFiles();
+  },
+  onNewFile: () => {
+    const name = prompt("File name:", "new-test.feature");
+    if (!name) return;
+    const fileName = name.endsWith(".feature") ? name : `${name}.feature`;
+    editor.setContent(`Feature: ${fileName.replace(".feature", "")}\n\n  Scenario: \n    Given \n`);
+    store.setState({
+      currentFileId: null,
+      currentFileName: fileName,
+      content: editor.getContent(),
+      dirty: true,
+    });
+  },
+  onToggleFiles: () => {
+    fileManager.toggle();
+  },
+});
+
+const fileManager = new FileManager(document.getElementById("file-manager")!, {
+  onFileSelect: (file: FeatureFile) => {
+    editor.setContent(file.content);
+    store.setState({
+      currentFileId: file.id,
+      currentFileName: file.name,
+      content: file.content,
+      dirty: false,
+    });
+    fileManager.setActiveFile(file.id);
+  },
+  onFileDelete: async (file: FeatureFile) => {
+    await deleteFeatureFile(file.id);
+    const state = store.getState();
+    if (state.currentFileId === file.id) {
+      store.setState({ currentFileId: null, currentFileName: "untitled.feature", dirty: false });
+    }
+    await refreshFiles();
+  },
+  onFileRename: async (file: FeatureFile, newName: string) => {
+    await renameFeatureFile(file.id, newName);
+    const state = store.getState();
+    if (state.currentFileId === file.id) {
+      store.setState({ currentFileName: newName });
+    }
+    await refreshFiles();
+  },
+});
+
+// IPC message handling
+ipc.onMessage((msg) => {
+  switch (msg.type) {
+    case "execute:start":
+      store.setState({ featureName: msg.featureName });
+      break;
+
+    case "execute:step":
+      resultsPanel.addStepResult(msg.result);
+      store.setState({
+        stepResults: [...store.getState().stepResults, msg.result],
+      });
+      break;
+
+    case "execute:done":
+      store.setState({ status: "done", featureResult: msg.result });
+      toolbar.setRunning(false);
+      statusBar.setStatus("done");
+      statusBar.setStats(
+        msg.result.stats.passed,
+        msg.result.stats.failed,
+        msg.result.stats.total,
+        msg.result.duration,
+      );
+      resultsPanel.showSummary(msg.result);
+      break;
+
+    case "execute:error":
+      store.setState({ status: "error", error: msg.error });
+      toolbar.setRunning(false);
+      statusBar.setStatus("error");
+      break;
+
+    case "execute:cancelled":
+      store.setState({ status: "cancelled" });
+      toolbar.setRunning(false);
+      statusBar.setStatus("cancelled");
+      break;
+
+    case "parse:error":
+      store.setState({ status: "error", error: msg.errors.map((e) => e.message).join("\n") });
+      toolbar.setRunning(false);
+      statusBar.setStatus("error");
+      resultsPanel.show();
+      resultsPanel.clear();
+      // Show parse errors in results panel
+      for (const err of msg.errors) {
+        resultsPanel.addStepResult({
+          step: { keyword: "Parse Error", text: err.message, line: err.line },
+          status: "failed",
+          error: `Line ${err.line}, Column ${err.column}`,
+          duration: 0,
+        });
+      }
+      break;
+  }
+});
+
+// Editor change tracking
+editor.onChange((content) => {
+  store.setState({ content, dirty: true });
+});
+
+// Store subscriptions for toolbar state
+store.subscribe((state) => {
+  toolbar.setRunning(state.status === "running");
+  toolbar.setFileName(state.currentFileName, state.dirty);
+});
+
+// Load saved files
+async function refreshFiles() {
+  const files = await loadFeatureFiles();
+  store.setState({ files });
+  fileManager.setFiles(files);
+}
+
+refreshFiles();
+
+console.log("[Gherkin BDD] Side panel loaded");
