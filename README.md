@@ -1,15 +1,21 @@
+<p align="center">
+  <img src="assets/logo.png" alt="BDD Runner Logo" width="180" />
+</p>
+
 # BDD Runner Chrome Extension
 
-A powerful Chrome extension for running Gherkin BDD scenarios with built-in HTTP testing and Lua scripting support. Execute API tests, validate responses, and create custom test steps directly in your browser.
+A powerful Chrome extension for running Gherkin BDD scenarios with built-in HTTP testing, browser automation, and Lua scripting support. Execute API tests, automate browser interactions, validate responses, and create custom test steps directly in your browser.
 
 ## Features
 
 ✨ **Gherkin/BDD Syntax** - Write tests in familiar Given/When/Then format  
 🌐 **HTTP Testing** - Built-in support for REST API testing (GET, POST, PUT, DELETE, etc.)  
+🖥️ **Browser Automation** - Control pages via Chrome DevTools Protocol with CSS & accessibility selectors  
 🔧 **Lua Scripting** - Extend functionality with inline Lua code and custom step definitions  
-📊 **Real-time Results** - See test execution results with detailed error messages  
+📊 **Real-time Results** - See test results with feature/scenario headers, timing, and screenshots  
+📋 **Scenarios Panel** - Browse, select, and run scenarios from all saved feature files  
 💾 **File Management** - Save and organize multiple feature files  
-🎨 **Syntax Highlighting** - CodeMirror editor with Gherkin language support  
+🎨 **Syntax Highlighting** - CodeMirror editor with Gherkin language support and Tab indentation  
 🔌 **Plugin Architecture** - Extensible plugin system for custom step definitions
 
 ## Installation
@@ -37,6 +43,18 @@ pnpm dev
    - Enable "Developer mode"
    - Click "Load unpacked"
    - Select the `.output/chrome-mv3` directory
+
+## UI Layout
+
+The side panel has **three tabs**:
+
+| Tab | Description |
+|-----|-------------|
+| **Editor** | CodeMirror editor with syntax highlighting, file manager sidebar, toolbar (Run/Save/New), and Lua script manager |
+| **Scenarios** | Lists all scenarios from all saved feature files. Select/deselect with checkboxes, run individually or in bulk |
+| **Results** | Full-height execution output with feature/scenario headers, step results, screenshots, and timing |
+
+When you run tests from any tab, it automatically switches to the **Results** tab.
 
 ## Quick Start
 
@@ -89,6 +107,23 @@ Feature: Lua Validation
     """
 ```
 
+### Browser Automation
+
+```gherkin
+Feature: SauceDemo Login
+
+  Scenario: Login with standard user
+    Given browser open 'https://www.saucedemo.com'
+    And browser fill 'textbox "Username"' with 'standard_user'
+    And browser fill 'textbox "Password"' with 'secret_sauce'
+    And browser click 'button "Login"'
+    Then browser text 'heading "Products"' == 'Products'
+    And browser screenshot
+    And browser close
+```
+
+> **Accessibility selectors** use the format `role "accessible name"` — matching the Chrome Accessibility Tree. CSS selectors also work: `browser click '#login-btn'`.
+
 ## Built-in Step Definitions
 
 ### HTTP Steps
@@ -117,6 +152,31 @@ Feature: Lua Validation
 - `And eval` - Execute Lua code (with doc string)
 - `And def <varName> = eval` - Capture Lua return value
 - `And script '<name>'` - Run a saved Lua script
+
+### Browser Steps
+
+- `Given browser open '<url>'` - Open a URL in the active tab
+- `And browser click '<selector>'` - Click an element
+- `And browser fill '<selector>' with '<value>'` - Type into an input
+- `And browser select '<selector>' value '<option>'` - Select dropdown option
+- `And browser check '<selector>'` / `browser uncheck '<selector>'` - Toggle checkboxes
+- `Then browser text '<selector>' == '<expected>'` - Assert visible text
+- `And browser value '<selector>' == '<expected>'` - Assert input value
+- `And browser visible '<selector>'` - Assert element is visible
+- `And browser screenshot` - Capture a full-page screenshot
+- `And browser press '<key>'` - Press a keyboard key (Enter, Tab, Escape, etc.)
+- `And browser wait '<selector>'` - Wait for element to appear
+- `And browser scroll '<selector>'` - Scroll element into view
+- `And browser close` - Close the browser connection
+
+#### Selector Formats
+
+| Format | Example | Description |
+|--------|---------|-------------|
+| CSS | `#login-btn`, `.submit` | Standard CSS selectors |
+| Accessibility | `button "Login"` | ARIA role + accessible name |
+
+Supported roles: `button`, `textbox`, `link`, `heading`, `checkbox`, `radio`, `combobox`, `listbox`, `option`, `menuitem`, `tab`, `dialog`, `alert`, `img`, `list`, `navigation`, `search`, `region`, `form`
 
 ## Lua Scripting
 
@@ -156,29 +216,39 @@ And validate users count 10
 ```
 gherkin-extension/
 ├── entrypoints/
-│   ├── background.ts          # Service worker
-│   └── sidepanel/             # UI components
-│       ├── main.ts
+│   ├── background.ts              # Service worker
+│   └── sidepanel/                 # UI components
+│       ├── index.html             # 3-tab layout (Editor/Scenarios/Results)
+│       ├── main.ts                # Tab switching, execution queue, IPC
 │       ├── components/
-│       │   ├── Editor.ts      # CodeMirror editor
-│       │   ├── FileManager.ts # File sidebar
-│       │   ├── ResultsPanel.ts # Test results
-│       │   └── ScriptManager.ts # Lua scripts
+│       │   ├── Editor.ts          # CodeMirror editor
+│       │   ├── FileManager.ts     # File sidebar
+│       │   ├── ResultsPanel.ts    # Test results with feature/scenario headers
+│       │   ├── ScenariosPanel.ts  # Scenario browser with checkboxes & run buttons
+│       │   ├── ScriptManager.ts   # Lua scripts
+│       │   ├── StatusBar.ts       # Bottom status bar
+│       │   └── Toolbar.ts         # Editor toolbar
 │       └── styles.css
 ├── lib/
-│   ├── editor/               # CodeMirror config
-│   ├── engine/               # Test execution engine
-│   │   ├── executor.ts       # Feature runner
-│   │   ├── step-matcher.ts   # Pattern matching
-│   │   └── step-registry.ts  # Step definitions
-│   ├── lua/                  # Lua integration (Fengari)
-│   │   ├── lua-bridge.ts     # Lua VM wrapper
-│   │   └── lua-stdlib.ts     # Custom Lua stdlib
-│   ├── parser/               # Gherkin parser
-│   ├── plugins/              # Plugin system
-│   ├── steps/                # Built-in steps
-│   └── storage/              # Chrome storage
-└── wxt.config.ts             # Extension config
+│   ├── browser/                   # Browser automation
+│   │   └── cdp-client.ts         # Chrome DevTools Protocol client
+│   ├── editor/                    # CodeMirror config
+│   ├── engine/                    # Test execution engine
+│   │   ├── executor.ts           # Feature runner (sequential multi-feature)
+│   │   ├── step-matcher.ts       # Pattern matching
+│   │   └── step-registry.ts      # Step definitions
+│   ├── ipc/                       # Side panel ↔ background messaging
+│   ├── lua/                       # Lua integration (Fengari)
+│   │   ├── lua-bridge.ts         # Lua VM wrapper
+│   │   └── lua-stdlib.ts         # Custom Lua stdlib
+│   ├── parser/                    # Gherkin parser
+│   ├── plugins/                   # Plugin system
+│   │   ├── browser-plugin.ts     # Browser automation steps
+│   │   ├── built-in-plugin.ts    # HTTP/assertion steps
+│   │   └── lua-plugin.ts         # Lua step definitions
+│   ├── steps/                     # Built-in step definitions
+│   └── storage/                   # Chrome storage (features + Lua scripts)
+└── wxt.config.ts                  # Extension config
 ```
 
 ## Development
@@ -222,10 +292,10 @@ export function getMyStepDefinitions(): StepDefinition[] {
 
 - **WXT** - Chrome extension framework
 - **TypeScript** - Type-safe development
-- **CodeMirror 6** - Code editor
+- **CodeMirror 6** - Code editor with Gherkin language support
 - **Fengari** - Lua VM in JavaScript
-- **Zustand** - State management
-- **Chrome APIs** - Storage, runtime messaging
+- **Chrome DevTools Protocol** - Browser automation (CDP)
+- **Chrome APIs** - Storage, runtime messaging, debugger API
 
 ## Examples
 
@@ -236,6 +306,8 @@ See [samples.md](samples.md) for comprehensive examples including:
 - Doc string bodies
 - Lua eval and variable capture
 - Custom Lua steps
+- Browser automation with CSS and accessibility selectors
+- Multi-feature sequential execution
 - Error handling
 
 ## Contributing
