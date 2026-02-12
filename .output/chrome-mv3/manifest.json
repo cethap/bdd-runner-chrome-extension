@@ -1,1 +1,0 @@
-{"manifest_version":3,"name":"Gherkin BDD Runner","description":"Gherkin editor with Karate-style HTTP execution","version":"0.1.0","permissions":["sidePanel","storage"],"host_permissions":["<all_urls>"],"action":{"default_title":"Open Gherkin Runner"},"side_panel":{"default_path":"sidepanel.html"},"background":{"service_worker":"background.js"}}
