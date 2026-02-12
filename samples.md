@@ -1,8 +1,6 @@
-  1. POST + Response Validation                                                                                
-                                                                 
-  Feature: Create a Post                                                                                       
-    Test POST with request body                                                                                
-                                                                                                               
+  1. POST + Response Validation                                                                  
+  
+  Feature: Create a Post Test POST with request body                        
     Scenario: Create a new post
       Given url 'https://jsonplaceholder.typicode.com/posts'
       And header Content-Type = 'application/json'
@@ -16,8 +14,7 @@
 
   2. Chained Requests (variable reuse)
 
-  Feature: Chained API Calls
-    Use response data in the next request
+  Feature: Chained API Calls Use response data in the next request
 
     Scenario: Get user then get their posts
       Given url 'https://jsonplaceholder.typicode.com/users/1'
@@ -189,3 +186,134 @@
   ---
   Start with test #1 — that's the quickest way to verify the whole pipeline: Gherkin parsing → step matching →
   Lua bridge → json.decode → assert → print → results panel.
+
+
+
+
+  ── Browser UI Automation (SauceDemo) ──
+
+  1. Successful Login
+
+  Feature: SauceDemo Login
+
+    Scenario: Login with standard user
+      Given browser open 'https://www.saucedemo.com'
+      And browser fill '#user-name' with 'standard_user'
+      And browser fill '#password' with 'secret_sauce'
+      And browser click '#login-button'
+      Then browser text '.title' == 'Products'
+      And browser screenshot
+      And browser close
+
+  2. Failed Login
+
+  Feature: SauceDemo Login Errors
+
+    Scenario: Login with locked out user
+      Given browser open 'https://www.saucedemo.com'
+      And browser fill '#user-name' with 'locked_out_user'
+      And browser fill '#password' with 'secret_sauce'
+      And browser click '#login-button'
+      Then browser text '[data-test="error"]' contains 'locked out'
+      And browser screenshot
+      And browser close
+
+  3. Add Item to Cart
+
+  Feature: Shopping Cart
+
+    Scenario: Add backpack to cart
+      Given browser open 'https://www.saucedemo.com'
+      And browser fill '#user-name' with 'standard_user'
+      And browser fill '#password' with 'secret_sauce'
+      And browser click '#login-button'
+      And browser click '#add-to-cart-sauce-labs-backpack'
+      Then browser text '.shopping_cart_badge' == '1'
+      And browser screenshot
+      And browser close
+
+  4. Full Checkout Flow
+
+  Feature: Checkout Flow
+
+    Scenario: Purchase a product end to end
+      Given browser open 'https://www.saucedemo.com'
+      And browser fill '#user-name' with 'standard_user'
+      And browser fill '#password' with 'secret_sauce'
+      And browser click '#login-button'
+      And browser click '#add-to-cart-sauce-labs-backpack'
+      And browser click '.shopping_cart_link'
+      Then browser text '.inventory_item_name' == 'Sauce Labs Backpack'
+      And browser screenshot
+      And browser click '#checkout'
+      And browser fill '#first-name' with 'John'
+      And browser fill '#last-name' with 'Doe'
+      And browser fill '#postal-code' with '12345'
+      And browser click '#continue'
+      Then browser text '.inventory_item_name' == 'Sauce Labs Backpack'
+      And browser screenshot
+      And browser click '#finish'
+      Then browser text '.complete-header' == 'Thank you for your order!'
+      And browser screenshot
+      And browser close
+
+  5. Add Multiple Items and Verify Cart
+
+  Feature: Multiple Items
+
+    Scenario: Add two items and verify cart count
+      Given browser open 'https://www.saucedemo.com'
+      And browser fill '#user-name' with 'standard_user'
+      And browser fill '#password' with 'secret_sauce'
+      And browser click '#login-button'
+      And browser click '#add-to-cart-sauce-labs-backpack'
+      And browser click '#add-to-cart-sauce-labs-bike-light'
+      Then browser text '.shopping_cart_badge' == '2'
+      And browser click '.shopping_cart_link'
+      And browser screenshot
+      And browser close
+
+  6. Remove Item from Cart
+
+  Feature: Cart Management
+
+    Scenario: Add and remove item
+      Given browser open 'https://www.saucedemo.com'
+      And browser fill '#user-name' with 'standard_user'
+      And browser fill '#password' with 'secret_sauce'
+      And browser click '#login-button'
+      And browser click '#add-to-cart-sauce-labs-backpack'
+      Then browser text '.shopping_cart_badge' == '1'
+      And browser click '#remove-sauce-labs-backpack'
+      Then browser not visible '.shopping_cart_badge'
+      And browser screenshot
+      And browser close
+
+  7. Capture Product Name into Variable
+
+  Feature: Variable Capture
+
+    Scenario: Capture and print product name
+      Given browser open 'https://www.saucedemo.com'
+      And browser fill '#user-name' with 'standard_user'
+      And browser fill '#password' with 'secret_sauce'
+      And browser click '#login-button'
+      And def productName = browser text '.inventory_item_name'
+      And print productName
+      And browser screenshot
+      And browser close
+
+  8. Sort Products
+
+  Feature: Product Sorting
+
+    Scenario: Sort by price low to high
+      Given browser open 'https://www.saucedemo.com'
+      And browser fill '#user-name' with 'standard_user'
+      And browser fill '#password' with 'secret_sauce'
+      And browser click '#login-button'
+      And browser select '.product_sort_container' value 'lohi'
+      And def firstProduct = browser text '.inventory_item_name'
+      And print firstProduct
+      And browser screenshot
+      And browser close
