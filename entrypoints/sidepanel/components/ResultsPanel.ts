@@ -44,6 +44,22 @@ export class ResultsPanel {
     }
   }
 
+  addFeatureHeader(featureName: string): void {
+    if (!this.listEl) return;
+    const header = document.createElement("div");
+    header.className = "result-feature-header";
+    header.textContent = `📦 Feature: ${featureName}`;
+    this.listEl.appendChild(header);
+  }
+
+  addScenarioHeader(scenarioName: string): void {
+    if (!this.listEl) return;
+    const header = document.createElement("div");
+    header.className = "result-scenario-header";
+    header.textContent = `▸ Scenario: ${scenarioName}`;
+    this.listEl.appendChild(header);
+  }
+
   addStepResult(result: StepResult): void {
     if (!this.listEl) return;
 

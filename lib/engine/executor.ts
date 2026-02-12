@@ -12,6 +12,7 @@ import { matchStep } from "./step-matcher";
 import { createExecutionContext, resetRequestState } from "./context";
 
 export type StepProgressCallback = (result: StepResult, scenarioIndex: number) => void;
+export type ScenarioProgressCallback = (scenarioName: string, scenarioIndex: number) => void;
 
 export async function executeFeature(
   feature: ParsedFeature,
@@ -19,6 +20,7 @@ export async function executeFeature(
   signal: AbortSignal,
   onProgress?: StepProgressCallback,
   hooks?: ExecutionHooks,
+  onScenarioStart?: ScenarioProgressCallback,
 ): Promise<FeatureResult> {
   const start = performance.now();
   const scenarioResults: ScenarioResult[] = [];
@@ -32,6 +34,8 @@ export async function executeFeature(
       overallStatus = "skipped";
       continue;
     }
+
+    onScenarioStart?.(scenario.name, i);
 
     // Handle Scenario Outline with Examples
     if (scenario.examples && scenario.examples.length > 0) {

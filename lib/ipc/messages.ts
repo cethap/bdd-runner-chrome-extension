@@ -18,6 +18,7 @@ export type ServerMessage =
   | { type: "parse:success"; featureName: string; scenarioCount: number }
   | { type: "parse:error"; errors: ParseError[] }
   | { type: "execute:start"; featureName: string }
+  | { type: "execute:scenario"; scenarioName: string; scenarioIndex: number }
   | { type: "execute:step"; result: StepResult; scenarioIndex: number }
   | { type: "execute:done"; result: FeatureResult }
   | { type: "execute:error"; error: string }

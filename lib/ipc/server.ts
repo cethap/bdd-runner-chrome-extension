@@ -146,6 +146,9 @@ export class IpcServer {
           send({ type: "execute:step", result: stepResult, scenarioIndex });
         },
         hooks,
+        (scenarioName, scenarioIndex) => {
+          send({ type: "execute:scenario", scenarioName, scenarioIndex });
+        },
       );
 
       if (signal.aborted) {

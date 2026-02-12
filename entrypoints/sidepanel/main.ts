@@ -87,12 +87,11 @@ const scriptManager = new ScriptManager(document.getElementById("script-manager"
   },
 });
 
-// ── Helper: build feature source from scenario items ───────
+// ── Helper: build feature source from scenario items (same feature) ───
 
-function buildFeatureSource(items: ScenarioItem[]): string {
-  // Merge all scenarios into one feature (parser only supports 1 feature per source)
+function buildFeatureSource(featureName: string, items: ScenarioItem[]): string {
   const parts: string[] = [];
-  parts.push(`Feature: Test Suite\n`);
+  parts.push(`Feature: ${featureName}\n`);
   for (const item of items) {
     parts.push(`  Scenario: ${item.scenario.name}`);
     for (const step of item.scenario.steps) {
@@ -101,7 +100,6 @@ function buildFeatureSource(items: ScenarioItem[]): string {
     }
     parts.push("");
   }
-
   return parts.join("\n");
 }
 
@@ -120,36 +118,80 @@ function startExecution(source: string) {
   ipc.send({ type: "execute", source });
 }
 
+// Track when an execution finishes so we can chain multiple features
+let executionResolve: (() => void) | null = null;
+
+function waitForExecutionDone(): Promise<void> {
+  return new Promise((resolve) => {
+    executionResolve = resolve;
+  });
+}
+
+async function startExecutionQueue(groups: { featureName: string; items: ScenarioItem[] }[]) {
+  store.setState({
+    status: "running",
+    stepResults: [],
+    featureResult: null,
+    error: null,
+  });
+  resultsPanel.show();
+  resultsPanel.clear();
+  statusBar.setStatus("running");
+  statusBar.clearStats();
+  switchTab("results");
+
+  for (const group of groups) {
+    if (store.getState().status === "cancelled") break;
+    const source = buildFeatureSource(group.featureName, group.items);
+    ipc.send({ type: "execute", source });
+    await waitForExecutionDone();
+  }
+
+  // All features done
+  toolbar.setRunning(false);
+  scenariosPanel.setRunning(false);
+  if (store.getState().status !== "cancelled") {
+    statusBar.setStatus("done");
+  }
+}
+
 // ── Scenarios Panel ────────────────────────────────────────
 
 const scenariosPanel = new ScenariosPanel(document.getElementById("scenarios-panel")!, {
   onRunAll: () => {
-    // Parse all files into scenario items and run them all
     const files = store.getState().files;
-    const allItems: ScenarioItem[] = [];
+    const groups: { featureName: string; items: ScenarioItem[] }[] = [];
     for (const file of files) {
-
       const result = parseGherkin(file.content);
       if (!result.ok) continue;
-      for (const scenario of result.feature.scenarios) {
-        allItems.push({
-          fileId: file.id,
-          fileName: file.name,
-          featureName: result.feature.name,
-          scenario,
-          selected: true,
-        });
+      const items: ScenarioItem[] = result.feature.scenarios.map((scenario) => ({
+        fileId: file.id,
+        fileName: file.name,
+        featureName: result.feature.name,
+        scenario,
+        selected: true,
+      }));
+      if (items.length > 0) {
+        groups.push({ featureName: result.feature.name, items });
       }
     }
-    const source = buildFeatureSource(allItems);
-    startExecution(source);
+    startExecutionQueue(groups);
   },
   onRunSelected: (items: ScenarioItem[]) => {
-    const source = buildFeatureSource(items);
-    startExecution(source);
+    // Group by feature name
+    const grouped = new Map<string, ScenarioItem[]>();
+    for (const item of items) {
+      if (!grouped.has(item.featureName)) grouped.set(item.featureName, []);
+      grouped.get(item.featureName)!.push(item);
+    }
+    const groups = Array.from(grouped.entries()).map(([featureName, groupItems]) => ({
+      featureName,
+      items: groupItems,
+    }));
+    startExecutionQueue(groups);
   },
   onRunSingle: (item: ScenarioItem) => {
-    const source = buildFeatureSource([item]);
+    const source = buildFeatureSource(item.featureName, [item]);
     startExecution(source);
   },
   onStop: () => {
@@ -246,6 +288,11 @@ ipc.onMessage((msg) => {
   switch (msg.type) {
     case "execute:start":
       store.setState({ featureName: msg.featureName });
+      resultsPanel.addFeatureHeader(msg.featureName);
+      break;
+
+    case "execute:scenario":
+      resultsPanel.addScenarioHeader(msg.scenarioName);
       break;
 
     case "execute:step":
@@ -255,25 +302,39 @@ ipc.onMessage((msg) => {
       });
       break;
 
-    case "execute:done":
+    case "execute:done": {
       store.setState({ status: "done", featureResult: msg.result });
-      toolbar.setRunning(false);
-      scenariosPanel.setRunning(false);
-      statusBar.setStatus("done");
       statusBar.setStats(
         msg.result.stats.passed,
         msg.result.stats.failed,
         msg.result.stats.total,
         msg.result.duration,
       );
-      resultsPanel.showSummary(msg.result);
+      // Resolve the queue so next feature can start
+      if (executionResolve) {
+        const resolve = executionResolve;
+        executionResolve = null;
+        resolve();
+      } else {
+        // Single execution (not queued)
+        toolbar.setRunning(false);
+        scenariosPanel.setRunning(false);
+        statusBar.setStatus("done");
+        resultsPanel.showSummary(msg.result);
+      }
       break;
+    }
 
     case "execute:error":
       store.setState({ status: "error", error: msg.error });
       toolbar.setRunning(false);
       scenariosPanel.setRunning(false);
       statusBar.setStatus("error");
+      if (executionResolve) {
+        const resolve = executionResolve;
+        executionResolve = null;
+        resolve();
+      }
       break;
 
     case "execute:cancelled":
@@ -281,6 +342,11 @@ ipc.onMessage((msg) => {
       toolbar.setRunning(false);
       scenariosPanel.setRunning(false);
       statusBar.setStatus("cancelled");
+      if (executionResolve) {
+        const resolve = executionResolve;
+        executionResolve = null;
+        resolve();
+      }
       break;
 
     case "parse:error":
@@ -298,6 +364,11 @@ ipc.onMessage((msg) => {
           error: `Line ${err.line}, Column ${err.column}`,
           duration: 0,
         });
+      }
+      if (executionResolve) {
+        const resolve = executionResolve;
+        executionResolve = null;
+        resolve();
       }
       break;
 
