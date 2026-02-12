@@ -35,6 +35,7 @@ const initialState: AppState = {
   error: null,
   files: [],
   loading: false,
+  recording: false,
 };
 
 // Store
@@ -247,6 +248,16 @@ const toolbar = new Toolbar(document.getElementById("toolbar")!, {
     scriptManager.toggle();
     if (document.getElementById("script-manager")!.classList.contains("visible")) {
       ipc.send({ type: "lua:list" });
+      ipc.send({ type: "lua:list" });
+    }
+  },
+  onRecord: () => {
+    const recording = !store.getState().recording;
+    store.setState({ recording });
+    if (recording) {
+      ipc.startRecording();
+    } else {
+      ipc.stopRecording();
     }
   },
 });
@@ -391,7 +402,23 @@ ipc.onMessage((msg) => {
 
     case "lua:error":
       console.error("[Lua]", msg.error);
+      console.error("[Lua]", msg.error);
       break;
+
+    case "record:step": {
+      if (!store.getState().recording) return;
+
+      const currentContent = editor.getContent();
+      // Ensure we append to a new line
+      const prefix = currentContent.endsWith("\n") ? "" : "\n";
+      // Add indentation
+      const stepLine = `    ${msg.step}`;
+
+      const newContent = `${currentContent}${prefix}${stepLine}`;
+      editor.setContent(newContent);
+      store.setState({ content: newContent, dirty: true });
+      break;
+    }
   }
 });
 
@@ -405,6 +432,7 @@ editor.onChange((content) => {
 
 store.subscribe((state) => {
   toolbar.setRunning(state.status === "running");
+  toolbar.setRecording(state.recording);
   toolbar.setFileName(state.currentFileName, state.dirty);
 });
 

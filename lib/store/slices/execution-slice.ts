@@ -8,6 +8,7 @@ export type ExecutionState = {
   stepResults: StepResult[];
   featureResult: FeatureResult | null;
   error: string | null;
+  recording: boolean;
 };
 
 export const initialExecutionState: ExecutionState = {
@@ -16,4 +17,5 @@ export const initialExecutionState: ExecutionState = {
   stepResults: [],
   featureResult: null,
   error: null,
+  recording: false,
 };

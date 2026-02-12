@@ -11,7 +11,10 @@ export type ClientMessage =
   | { type: "lua:delete"; id: string }
   | { type: "lua:toggle"; id: string; enabled: boolean }
   | { type: "lua:list" }
-  | { type: "lua:reload" };
+  | { type: "lua:reload" }
+  | { type: "record:start" }
+  | { type: "record:stop" }
+  | { type: "record:step"; step: string };
 
 // Messages from background → side panel
 export type ServerMessage =
@@ -27,4 +30,6 @@ export type ServerMessage =
   | { type: "lua:saved"; script: LuaScript }
   | { type: "lua:deleted"; id: string }
   | { type: "lua:toggled"; id: string; enabled: boolean }
-  | { type: "lua:error"; error: string };
+  | { type: "lua:toggled"; id: string; enabled: boolean }
+  | { type: "lua:error"; error: string }
+  | { type: "record:step"; step: string };

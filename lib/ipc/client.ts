@@ -39,4 +39,12 @@ export class IpcClient {
     this.port?.disconnect();
     this.port = null;
   }
+
+  startRecording(): void {
+    this.send({ type: "record:start" });
+  }
+
+  stopRecording(): void {
+    this.send({ type: "record:stop" });
+  }
 }

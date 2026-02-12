@@ -18,8 +18,10 @@ export class IpcServer {
   private registry: StepRegistry;
   private pluginManager: PluginManager;
   private luaPlugin: LuaPlugin;
+  private activePort: chrome.runtime.Port | null = null;
   private abortController: AbortController | null = null;
   private initialized = false;
+  private recordingTabId: number | null = null;
 
   constructor() {
     this.registry = new StepRegistry();
@@ -42,6 +44,7 @@ export class IpcServer {
       if (port.name !== "gherkin-runner") return;
 
       console.log("[Gherkin IPC] Client connected");
+      this.activePort = port;
 
       port.onMessage.addListener(async (message: ClientMessage) => {
         await this.handleMessage(message, port);
@@ -49,8 +52,33 @@ export class IpcServer {
 
       port.onDisconnect.addListener(() => {
         this.cancelExecution();
+        this.activePort = null;
         console.log("[Gherkin IPC] Client disconnected");
       });
+    });
+
+    // Listen for messages from content scripts (recorder)
+    chrome.runtime.onMessage.addListener((message, sender) => {
+      if (message.type === "record:step" && this.activePort) {
+        try {
+          this.activePort.postMessage(message);
+        } catch {
+          // Port disconnected
+        }
+      }
+    });
+
+    // Listen for tab updates to persist recording
+    chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
+      if (
+        this.recordingTabId === tabId &&
+        changeInfo.status === "complete"
+      ) {
+        // Re-inject recording state
+        chrome.tabs.sendMessage(tabId, { type: "record:start" }).catch(() => {
+          // Content script might not be ready
+        });
+      }
     });
   }
 
@@ -91,6 +119,13 @@ export class IpcServer {
         break;
       case "lua:reload":
         await this.handleLuaReload(send);
+        break;
+
+      case "record:start":
+        await this.handleRecordStart();
+        break;
+      case "record:stop":
+        await this.handleRecordStop();
         break;
     }
   }
@@ -233,6 +268,34 @@ export class IpcServer {
     if (this.abortController) {
       this.abortController.abort();
       this.abortController = null;
+    }
+  }
+  private async handleRecordStart(): Promise<void> {
+    const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
+    const tab = tabs[0];
+    if (tab?.id) {
+      this.recordingTabId = tab.id;
+
+      // Record initial URL
+      if (tab.url) {
+        const step = `Given I open "${tab.url}"`;
+        if (this.activePort) {
+          this.activePort.postMessage({ type: "record:step", step });
+        }
+      }
+
+      chrome.tabs.sendMessage(tab.id, { type: "record:start" }).catch(() => {
+        // Content script might not be ready
+      });
+    }
+  }
+
+  private async handleRecordStop(): Promise<void> {
+    if (this.recordingTabId) {
+      chrome.tabs.sendMessage(this.recordingTabId, { type: "record:stop" }).catch(() => {
+        // Content script might not be ready
+      });
+      this.recordingTabId = null;
     }
   }
 }

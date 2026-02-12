@@ -5,12 +5,14 @@ export type ToolbarCallbacks = {
   onNewFile: () => void;
   onToggleFiles: () => void;
   onToggleScripts: () => void;
+  onRecord: () => void;
 };
 
 export class Toolbar {
   private container: HTMLElement;
   private runBtn!: HTMLButtonElement;
   private stopBtn!: HTMLButtonElement;
+  private recordBtn!: HTMLButtonElement;
   private saveBtn!: HTMLButtonElement;
   private fileNameEl!: HTMLSpanElement;
 
@@ -43,6 +45,9 @@ export class Toolbar {
     this.stopBtn.disabled = true;
     this.container.appendChild(this.stopBtn);
 
+    this.recordBtn = this.createButton("\u25CF Rec", "toolbar-btn record", cb.onRecord);
+    this.container.appendChild(this.recordBtn);
+
     this.fileNameEl = document.createElement("span");
     this.fileNameEl.className = "toolbar-filename";
     this.fileNameEl.textContent = "untitled.feature";
@@ -70,6 +75,13 @@ export class Toolbar {
   setRunning(running: boolean): void {
     this.runBtn.disabled = running;
     this.stopBtn.disabled = !running;
+    this.recordBtn.disabled = running;
+  }
+
+  setRecording(recording: boolean): void {
+    this.recordBtn.classList.toggle("recording", recording);
+    this.recordBtn.textContent = recording ? "\u25A0 Stop Rec" : "\u25CF Rec";
+    this.runBtn.disabled = recording;
   }
 
   setFileName(name: string, dirty: boolean): void {

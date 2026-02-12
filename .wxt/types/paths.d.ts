@@ -10,6 +10,7 @@ declare module "wxt/browser" {
     | "/assets/icon-32.png"
     | "/assets/icon-48.png"
     | "/background.js"
+    | "/content-scripts/recorder.js"
     | "/sidepanel.html"
   type HtmlPublicPath = Extract<PublicPath, `${string}.html`>
   export interface WxtRuntime {
