@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="assets/logo.png" alt="BDD Runner Logo" width="180" />
+  <img src="assets/logo.png" alt="BDD Runner Logo" width="480" />
 </p>
 
 # BDD Runner Chrome Extension
