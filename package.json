@@ -9,9 +9,22 @@
     "zip": "wxt zip",
     "postinstall": "wxt prepare"
   },
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
+  "keywords": [
+    "gherkin",
+    "bdd",
+    "chrome-extension",
+    "testing",
+    "http",
+    "browser-automation",
+    "lua"
+  ],
+  "author": "Cesar Tapasco (https://github.com/cethap)",
+  "homepage": "https://github.com/cethap/bdd-runner-chrome-extension",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/cethap/bdd-runner-chrome-extension.git"
+  },
+  "license": "MIT",
   "packageManager": "pnpm@10.29.3",
   "dependencies": {
     "@codemirror/autocomplete": "^6.20.0",
