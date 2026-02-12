@@ -1,4 +1,5 @@
 import type { ParsedStep } from "@/lib/parser/types";
+import type { CdpClient } from "@/lib/browser/cdp-client";
 
 export type HttpMethod = "GET" | "POST" | "PUT" | "DELETE" | "PATCH" | "HEAD" | "OPTIONS";
 
@@ -19,6 +20,7 @@ export type StepResult = {
   duration: number;
   response?: HttpResponse;
   printOutput?: string;
+  screenshot?: string;
 };
 
 export type ScenarioResult = {
@@ -70,6 +72,7 @@ export type ExecutionContext = {
   response: HttpResponse | null;
   prints: string[];
   signal: AbortSignal;
+  browser: CdpClient | null;
 };
 
 export type ExecutionHooks = {

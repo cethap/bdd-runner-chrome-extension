@@ -82,7 +82,7 @@ export default defineConfig({
     name: "Gherkin BDD Runner",
     description: "Gherkin editor with Karate-style HTTP execution",
     version: "0.1.0",
-    permissions: ["sidePanel", "storage"],
+    permissions: ["sidePanel", "storage", "debugger"],
     host_permissions: ["<all_urls>"],
     action: {
       default_title: "Open Gherkin Runner",

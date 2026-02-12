@@ -128,6 +128,112 @@ const HTTP_STEP_TEMPLATES: Completion[] = [
   },
 ];
 
+const BROWSER_STEP_TEMPLATES: Completion[] = [
+  {
+    label: "browser open",
+    type: "function",
+    detail: "open new tab and navigate",
+    apply: "browser open 'https://'",
+  },
+  {
+    label: "browser navigate to",
+    type: "function",
+    detail: "navigate current tab",
+    apply: "browser navigate to 'https://'",
+  },
+  {
+    label: "browser click",
+    type: "function",
+    detail: "click element by selector",
+    apply: "browser click ''",
+  },
+  {
+    label: "browser fill",
+    type: "function",
+    detail: "type text into input",
+    apply: "browser fill '' with ''",
+  },
+  {
+    label: "browser text",
+    type: "function",
+    detail: "assert element text",
+    apply: "browser text '' == ''",
+  },
+  {
+    label: "browser text contains",
+    type: "function",
+    detail: "assert text contains",
+    apply: "browser text '' contains ''",
+    boost: -1,
+  },
+  {
+    label: "browser visible",
+    type: "function",
+    detail: "assert element visible",
+    apply: "browser visible ''",
+  },
+  {
+    label: "browser not visible",
+    type: "function",
+    detail: "assert element not visible",
+    apply: "browser not visible ''",
+  },
+  {
+    label: "browser screenshot",
+    type: "function",
+    detail: "capture page screenshot",
+  },
+  {
+    label: "browser wait for",
+    type: "function",
+    detail: "wait for element",
+    apply: "browser wait for ''",
+  },
+  {
+    label: "browser select",
+    type: "function",
+    detail: "select dropdown option",
+    apply: "browser select '' value ''",
+  },
+  {
+    label: "browser check",
+    type: "function",
+    detail: "check checkbox",
+    apply: "browser check ''",
+  },
+  {
+    label: "browser uncheck",
+    type: "function",
+    detail: "uncheck checkbox",
+    apply: "browser uncheck ''",
+  },
+  {
+    label: "browser press",
+    type: "function",
+    detail: "press key (Enter, Tab, etc.)",
+    apply: "browser press 'Enter'",
+  },
+  {
+    label: "browser close",
+    type: "function",
+    detail: "close browser tab",
+  },
+  {
+    label: "def = browser text",
+    type: "variable",
+    detail: "capture element text",
+    apply: "def varName = browser text ''",
+    boost: -1,
+  },
+  {
+    label: "def = browser value",
+    type: "variable",
+    detail: "capture input value",
+    apply: "def varName = browser value ''",
+    boost: -1,
+  },
+];
+
 export function gherkinCompletion(
   context: CompletionContext,
 ): CompletionResult | null {
@@ -155,7 +261,7 @@ export function gherkinCompletion(
 
     return {
       from,
-      options: HTTP_STEP_TEMPLATES.filter(
+      options: [...HTTP_STEP_TEMPLATES, ...BROWSER_STEP_TEMPLATES].filter(
         (t) =>
           stepText.length === 0 ||
           t.label.toLowerCase().startsWith(stepText.toLowerCase()),

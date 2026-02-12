@@ -6,6 +6,7 @@ import { StepRegistry } from "@/lib/engine/step-registry";
 import { PluginManager } from "@/lib/plugins/plugin-manager";
 import { BuiltInHttpPlugin } from "@/lib/plugins/built-in-plugin";
 import { LuaPlugin } from "@/lib/plugins/lua-plugin";
+import { BrowserPlugin } from "@/lib/plugins/browser-plugin";
 import {
   loadLuaScripts,
   saveLuaScript,
@@ -30,6 +31,7 @@ export class IpcServer {
     if (this.initialized) return;
     // Load Lua plugin first so more specific patterns (def x = eval) match before generic ones
     await this.pluginManager.loadPlugin(this.luaPlugin);
+    await this.pluginManager.loadPlugin(new BrowserPlugin());
     await this.pluginManager.loadPlugin(new BuiltInHttpPlugin());
     this.initialized = true;
     console.log(`[Gherkin Engine] Initialized with ${this.registry.size} step definitions`);

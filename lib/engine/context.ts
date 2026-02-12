@@ -11,6 +11,7 @@ export function createExecutionContext(signal: AbortSignal): ExecutionContext {
     response: null,
     prints: [],
     signal,
+    browser: null,
   };
 }
 

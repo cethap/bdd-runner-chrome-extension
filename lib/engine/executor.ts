@@ -184,7 +184,14 @@ async function executeStep(
 
     // Attach print output if any
     if (ctx.prints.length > 0) {
-      result.printOutput = ctx.prints.join("\n");
+      const screenshotIdx = ctx.prints.findIndex((p) => p.startsWith("[screenshot:"));
+      if (screenshotIdx >= 0) {
+        const marker = ctx.prints.splice(screenshotIdx, 1)[0]!;
+        result.screenshot = marker.slice("[screenshot:".length, -1);
+      }
+      if (ctx.prints.length > 0) {
+        result.printOutput = ctx.prints.join("\n");
+      }
       ctx.prints = [];
     }
 

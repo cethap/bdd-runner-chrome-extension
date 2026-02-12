@@ -90,6 +90,29 @@ export class ResultsPanel {
       this.listEl.appendChild(printEl);
     }
 
+    // Screenshot
+    if (result.screenshot) {
+      const imgWrap = document.createElement("div");
+      imgWrap.className = "step-screenshot";
+      const img = document.createElement("img");
+      img.src = `data:image/png;base64,${result.screenshot}`;
+      img.alt = "Page screenshot";
+      img.style.maxWidth = "100%";
+      img.style.borderRadius = "4px";
+      img.style.marginTop = "4px";
+      img.style.cursor = "pointer";
+      img.addEventListener("click", () => {
+        // Open full-size in new tab
+        const win = window.open();
+        if (win) {
+          win.document.write(`<img src="${img.src}" style="max-width:100%">`);
+          win.document.title = "Screenshot";
+        }
+      });
+      imgWrap.appendChild(img);
+      this.listEl.appendChild(imgWrap);
+    }
+
     // Response preview (only for steps that executed HTTP requests)
     if (result.response && result.step.text.match(/^method\s/i)) {
       const responseEl = document.createElement("div");
