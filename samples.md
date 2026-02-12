@@ -317,3 +317,81 @@
       And print firstProduct
       And browser screenshot
       And browser close
+
+
+
+
+  ── Browser UI Automation (Accessibility Selectors) ──
+
+  You can use accessibility tree selectors instead of CSS selectors.
+  Format: role "accessible name" — matches elements by ARIA role + name.
+
+  Supported roles: button, textbox, link, heading, checkbox, radio,
+  combobox, option, menuitem, tab, dialog, alert, img, text, StaticText
+
+  text/StaticText use partial matching — text "Prod" finds elements containing "Prod".
+  All other roles use exact matching on accessible name.
+
+  9. Login with Accessibility Selectors
+
+  Feature: SauceDemo Accessibility Login
+
+    Scenario: Login using accessibility tree roles
+      Given browser open 'https://www.saucedemo.com'
+      And browser fill 'textbox "Username"' with 'standard_user'
+      And browser fill 'textbox "Password"' with 'secret_sauce'
+      And browser click 'button "Login"'
+      Then browser text 'text "Products"' == 'Products'
+      And browser screenshot
+      And browser close
+
+  10. Capture Text and Partial Match
+
+  Feature: Text Capture and Search
+
+    Scenario: Capture element text and assert with partial match
+      Given browser open 'https://www.saucedemo.com'
+      And browser fill 'textbox "Username"' with 'standard_user'
+      And browser fill 'textbox "Password"' with 'secret_sauce'
+      And browser click 'button "Login"'
+      And def title = browser text 'text "Products"'
+      And print title
+      Then browser text 'text "Products"' contains 'Prod'
+      And browser screenshot
+      And browser close
+
+  11. Click Link by Accessible Name
+
+  Feature: Accessible Link Click
+
+    Scenario: Click product link by name
+      Given browser open 'https://www.saucedemo.com'
+      And browser fill 'textbox "Username"' with 'standard_user'
+      And browser fill 'textbox "Password"' with 'secret_sauce'
+      And browser click 'button "Login"'
+      And browser click 'link "Sauce Labs Backpack"'
+      Then browser text 'text "Back to products"' contains 'Back'
+      And browser screenshot
+      And browser close
+
+  12. Full Checkout with Accessibility Selectors
+
+  Feature: Accessible Checkout Flow
+
+    Scenario: Checkout using accessibility selectors
+      Given browser open 'https://www.saucedemo.com'
+      And browser fill 'textbox "Username"' with 'standard_user'
+      And browser fill 'textbox "Password"' with 'secret_sauce'
+      And browser click 'button "Login"'
+      And browser click 'button "Add to cart"'
+      And browser click 'link "1"'
+      And browser click 'button "Checkout"'
+      And browser fill 'textbox "First Name"' with 'John'
+      And browser fill 'textbox "Last Name"' with 'Doe'
+      And browser fill 'textbox "Zip/Postal Code"' with '12345'
+      And browser click 'button "Continue"'
+      And browser screenshot
+      And browser click 'button "Finish"'
+      Then browser text 'text "Thank you"' contains 'Thank you'
+      And browser screenshot
+      And browser close

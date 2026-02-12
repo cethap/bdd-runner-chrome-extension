@@ -175,6 +175,7 @@ export class CdpClient {
     // ── Element Queries ────────────────────────────────────────
 
     async querySelector(selector: string): Promise<string> {
+        const query = this.queryExpression(selector);
         const result = await this.send<{
             result: {
                 type: string;
@@ -184,7 +185,7 @@ export class CdpClient {
             };
             exceptionDetails?: { text: string; exception?: { description?: string } };
         }>("Runtime.evaluate", {
-            expression: `document.querySelector(${JSON.stringify(selector)})`,
+            expression: query,
             returnByValue: false,
         });
 
@@ -243,10 +244,11 @@ export class CdpClient {
 
     async fill(selector: string, value: string): Promise<void> {
         await this.waitForSelector(selector);
+        const query = this.queryExpression(selector);
         // Focus and clear
         await this.evaluate(`
       (() => {
-        const el = document.querySelector(${JSON.stringify(selector)});
+        const el = ${query};
         if (!el) throw new Error('Element not found: ${selector}');
         el.focus();
         el.value = '';
@@ -271,7 +273,7 @@ export class CdpClient {
         // Fire change event
         await this.evaluate(`
       (() => {
-        const el = document.querySelector(${JSON.stringify(selector)});
+        const el = ${query};
         if (el) {
           el.dispatchEvent(new Event('change', { bubbles: true }));
           el.dispatchEvent(new Event('input', { bubbles: true }));
@@ -284,9 +286,10 @@ export class CdpClient {
 
     async getText(selector: string): Promise<string> {
         await this.waitForSelector(selector);
+        const query = this.queryExpression(selector);
         const text = await this.evaluate<string>(`
       (() => {
-        const el = document.querySelector(${JSON.stringify(selector)});
+        const el = ${query};
         if (!el) throw new Error('Element not found: ${selector}');
         return el.textContent?.trim() ?? '';
       })()
@@ -298,9 +301,10 @@ export class CdpClient {
 
     async getValue(selector: string): Promise<string> {
         await this.waitForSelector(selector);
+        const query = this.queryExpression(selector);
         return await this.evaluate<string>(`
       (() => {
-        const el = document.querySelector(${JSON.stringify(selector)});
+        const el = ${query};
         if (!el) throw new Error('Element not found: ${selector}');
         return el.value ?? '';
       })()
@@ -310,9 +314,10 @@ export class CdpClient {
     // ── Visibility ─────────────────────────────────────────────
 
     async isVisible(selector: string): Promise<boolean> {
+        const query = this.queryExpression(selector);
         return await this.evaluate<boolean>(`
       (() => {
-        const el = document.querySelector(${JSON.stringify(selector)});
+        const el = ${query};
         if (!el) return false;
         const style = window.getComputedStyle(el);
         return style.display !== 'none'
@@ -341,12 +346,13 @@ export class CdpClient {
      * it retries instead of throwing immediately.
      */
     async waitForSelector(selector: string, timeout?: number): Promise<void> {
+        const query = this.queryExpression(selector);
         const deadline = Date.now() + (timeout ?? this.DEFAULT_TIMEOUT);
         let lastError = "";
         while (Date.now() < deadline) {
             try {
                 const exists = await this.evaluate<boolean>(
-                    `document.querySelector(${JSON.stringify(selector)}) !== null`,
+                    `(${query}) !== null`,
                 );
                 if (exists) return;
             } catch (err) {
@@ -365,9 +371,10 @@ export class CdpClient {
 
     async select(selector: string, value: string): Promise<void> {
         await this.waitForSelector(selector);
+        const query = this.queryExpression(selector);
         await this.evaluate(`
       (() => {
-        const el = document.querySelector(${JSON.stringify(selector)});
+        const el = ${query};
         if (!el) throw new Error('Element not found: ${selector}');
         el.value = ${JSON.stringify(value)};
         el.dispatchEvent(new Event('change', { bubbles: true }));
@@ -379,9 +386,10 @@ export class CdpClient {
 
     async check(selector: string): Promise<void> {
         await this.waitForSelector(selector);
+        const query = this.queryExpression(selector);
         await this.evaluate(`
       (() => {
-        const el = document.querySelector(${JSON.stringify(selector)});
+        const el = ${query};
         if (!el) throw new Error('Element not found: ${selector}');
         if (!el.checked) { el.click(); }
       })()
@@ -390,9 +398,10 @@ export class CdpClient {
 
     async uncheck(selector: string): Promise<void> {
         await this.waitForSelector(selector);
+        const query = this.queryExpression(selector);
         await this.evaluate(`
       (() => {
-        const el = document.querySelector(${JSON.stringify(selector)});
+        const el = ${query};
         if (!el) throw new Error('Element not found: ${selector}');
         if (el.checked) { el.click(); }
       })()
@@ -433,21 +442,141 @@ export class CdpClient {
         });
     }
 
+    // ── Accessibility Selector Engine ──────────────────────────
+
+    /**
+     * Detect if a selector is an accessibility selector.
+     * Format: `role "accessible name"` — e.g. `button "Login"`, `textbox "Username"`
+     * 
+     * Supported roles: button, textbox, link, heading, checkbox, radio,
+     * combobox, listbox, option, menuitem, tab, dialog, alert, img, list,
+     * navigation, search, region, form
+     */
+    private static readonly A11Y_PATTERN = /^(button|textbox|link|heading|checkbox|radio|combobox|listbox|option|menuitem|tab|dialog|alert|img|list|navigation|search|region|form|text|StaticText)\s+"(.+)"$/;
+
+    private isAccessibilitySelector(selector: string): boolean {
+        return CdpClient.A11Y_PATTERN.test(selector);
+    }
+
+    /**
+     * Build a JS expression that finds an element by accessibility role + name.
+     * Returns the first matching element or null.
+     */
+    private buildA11yQueryJS(selector: string): string {
+        const match = selector.match(CdpClient.A11Y_PATTERN);
+        if (!match) throw new Error(`Invalid accessibility selector: ${selector}`);
+
+        const role = match[1]!;
+        const name = match[2]!;
+
+        // Map accessibility roles to possible HTML elements + ARIA role selectors
+        const roleMap: Record<string, string[]> = {
+            button: ['button', '[role="button"]', 'input[type="button"]', 'input[type="submit"]', 'input[type="reset"]'],
+            textbox: ['input:not([type])', 'input[type="text"]', 'input[type="email"]', 'input[type="password"]', 'input[type="search"]', 'input[type="tel"]', 'input[type="url"]', 'input[type="number"]', 'textarea', '[role="textbox"]'],
+            link: ['a[href]', '[role="link"]'],
+            heading: ['h1', 'h2', 'h3', 'h4', 'h5', 'h6', '[role="heading"]'],
+            checkbox: ['input[type="checkbox"]', '[role="checkbox"]'],
+            radio: ['input[type="radio"]', '[role="radio"]'],
+            combobox: ['select', '[role="combobox"]', '[role="listbox"]'],
+            listbox: ['select[multiple]', '[role="listbox"]'],
+            option: ['option', '[role="option"]'],
+            menuitem: ['[role="menuitem"]', '[role="menuitemcheckbox"]', '[role="menuitemradio"]'],
+            tab: ['[role="tab"]'],
+            dialog: ['dialog', '[role="dialog"]', '[role="alertdialog"]'],
+            alert: ['[role="alert"]'],
+            img: ['img', '[role="img"]'],
+            list: ['ul', 'ol', '[role="list"]'],
+            navigation: ['nav', '[role="navigation"]'],
+            search: ['[role="search"]', 'search'],
+            region: ['section[aria-label]', '[role="region"]'],
+            form: ['form', '[role="form"]'],
+            text: ['*'],
+            StaticText: ['*'],
+        };
+
+        const cssSelectors = roleMap[role] ?? [`[role="${role}"]`];
+        const selectorList = cssSelectors.map((s: string) => JSON.stringify(s)).join(", ");
+        const escapedName = name.replace(/\\/g, "\\\\").replace(/'/g, "\\'");
+        // text/StaticText use partial matching; everything else uses exact match
+        const usePartial = role === "text" || role === "StaticText";
+        const matchExpr = usePartial
+            ? `getAccessibleName(el).includes(target)`
+            : `getAccessibleName(el) === target`;
+
+        return `
+      (() => {
+        const selectors = [${selectorList}];
+        const target = '${escapedName}';
+
+        function getAccessibleName(el) {
+          // 1. aria-label
+          if (el.getAttribute('aria-label')) return el.getAttribute('aria-label').trim();
+          // 2. aria-labelledby
+          const labelledBy = el.getAttribute('aria-labelledby');
+          if (labelledBy) {
+            const label = document.getElementById(labelledBy);
+            if (label) return label.textContent?.trim() ?? '';
+          }
+          // 3. <label> for inputs
+          if (el.id) {
+            const label = document.querySelector('label[for="' + el.id + '"]');
+            if (label) return label.textContent?.trim() ?? '';
+          }
+          // 4. placeholder (for inputs)
+          if (el.placeholder) return el.placeholder.trim();
+          // 5. value (for submit buttons)
+          if (el.type === 'submit' || el.type === 'button') return (el.value ?? '').trim();
+          // 6. alt (for images)
+          if (el.alt) return el.alt.trim();
+          // 7. title attribute
+          if (el.title) return el.title.trim();
+          // 8. textContent as fallback
+          return el.textContent?.trim() ?? '';
+        }
+
+        let best = null;
+        let bestLen = Infinity;
+        for (const sel of selectors) {
+          const els = document.querySelectorAll(sel);
+          for (const el of els) {
+            if (${matchExpr}) {
+              const len = (el.textContent || '').length;
+              if (len < bestLen) { best = el; bestLen = len; }
+            }
+          }
+        }
+        return best;
+      })()`;
+    }
+
+    /**
+     * Build the JS expression to query an element — supports both CSS
+     * selectors and accessibility selectors like `button "Login"`.
+     */
+    private queryExpression(selector: string): string {
+        if (this.isAccessibilitySelector(selector)) {
+            return this.buildA11yQueryJS(selector);
+        }
+        return `document.querySelector(${JSON.stringify(selector)})`;
+    }
+
     // ── Helpers ────────────────────────────────────────────────
 
     private async scrollIntoView(selector: string): Promise<void> {
+        const query = this.queryExpression(selector);
         await this.evaluate(`
       (() => {
-        const el = document.querySelector(${JSON.stringify(selector)});
+        const el = ${query};
         if (el) el.scrollIntoView({ block: 'center', inline: 'center' });
       })()
     `);
     }
 
     private async getBoundingBox(selector: string): Promise<BoundingBox> {
+        const query = this.queryExpression(selector);
         const box = await this.evaluate<BoundingBox | null>(`
       (() => {
-        const el = document.querySelector(${JSON.stringify(selector)});
+        const el = ${query};
         if (!el) return null;
         const rect = el.getBoundingClientRect();
         return { x: rect.x, y: rect.y, width: rect.width, height: rect.height };
@@ -461,3 +590,4 @@ export class CdpClient {
         return new Promise((resolve) => setTimeout(resolve, ms));
     }
 }
+
