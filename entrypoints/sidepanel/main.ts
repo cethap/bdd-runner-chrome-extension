@@ -411,8 +411,9 @@ ipc.onMessage((msg) => {
       const currentContent = editor.getContent();
       // Ensure we append to a new line
       const prefix = currentContent.endsWith("\n") ? "" : "\n";
-      // Add indentation
-      const stepLine = `    ${msg.step}`;
+      // Use 'Given' for the first step (URL open), 'And' for the rest
+      const keyword = msg.isFirst ? "Given" : "And";
+      const stepLine = `    ${keyword} ${msg.step}`;
 
       const newContent = `${currentContent}${prefix}${stepLine}`;
       editor.setContent(newContent);

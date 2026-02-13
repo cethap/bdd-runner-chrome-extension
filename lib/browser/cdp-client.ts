@@ -550,14 +550,207 @@ export class CdpClient {
     }
 
     /**
-     * Build the JS expression to query an element — supports both CSS
-     * selectors and accessibility selectors like `button "Login"`.
+     * Build the JS expression to query an element — supports:
+     *  - CSS selectors: `document.querySelector(...)`
+     *  - Accessibility selectors: `button "Login"`
+     *  - Nth-index: `button "Delete" [2]` → find the 2nd match
+     *  - Parent-child chain: `form "Login" >> textbox "Email"` → scope child to parent subtree
      */
     private queryExpression(selector: string): string {
+        // ── Handle >> chaining ────────────────────────────────
+        if (selector.includes(" >> ")) {
+            const parts = selector.split(" >> ").map((s) => s.trim());
+            // Build nested: resolve parent, then scope child inside parent
+            let expr = this.querySingle(parts[0]!);
+            for (let i = 1; i < parts.length; i++) {
+                const childExpr = this.buildScopedQuery(parts[i]!);
+                expr = `
+              (() => {
+                const parent = ${expr};
+                if (!parent) return null;
+                ${childExpr}
+              })()`;
+            }
+            return expr;
+        }
+
+        return this.querySingle(selector);
+    }
+
+    /**
+     * Resolve a single selector segment (may have [N] index suffix).
+     */
+    private querySingle(selector: string): string {
+        // ── Handle [N] nth-index suffix ───────────────────────
+        const nthMatch = selector.match(/^(.+?)\s+\[(\d+)\]$/);
+        if (nthMatch) {
+            const baseSel = nthMatch[1]!;
+            const index = parseInt(nthMatch[2]!, 10); // 1-based
+            if (this.isAccessibilitySelector(baseSel)) {
+                return this.buildA11yNthQueryJS(baseSel, index);
+            }
+            // CSS selector with nth-index
+            return `document.querySelectorAll(${JSON.stringify(baseSel)})[${index - 1}] ?? null`;
+        }
+
+        // ── Standard resolvers ────────────────────────────────
         if (this.isAccessibilitySelector(selector)) {
             return this.buildA11yQueryJS(selector);
         }
         return `document.querySelector(${JSON.stringify(selector)})`;
+    }
+
+    /**
+     * Build a JS snippet that queries a child selector scoped to a `parent` variable.
+     * Returns a block of code (not an IIFE) — expects `parent` to already be defined.
+     */
+    private buildScopedQuery(childSelector: string): string {
+        const nthMatch = childSelector.match(/^(.+?)\s+\[(\d+)\]$/);
+        const baseSel = nthMatch ? nthMatch[1]! : childSelector;
+        const index = nthMatch ? parseInt(nthMatch[2]!, 10) : 0;
+
+        if (this.isAccessibilitySelector(baseSel)) {
+            const match = baseSel.match(CdpClient.A11Y_PATTERN);
+            if (!match) return `return null;`;
+
+            const role = match[1]!;
+            const name = match[2]!;
+            const cssSelectors = (({
+                button: ['button', '[role="button"]', 'input[type="button"]', 'input[type="submit"]', 'input[type="reset"]'],
+                textbox: ['input:not([type])', 'input[type="text"]', 'input[type="email"]', 'input[type="password"]', 'input[type="search"]', 'input[type="tel"]', 'input[type="url"]', 'input[type="number"]', 'textarea', '[role="textbox"]'],
+                link: ['a[href]', '[role="link"]'],
+                heading: ['h1', 'h2', 'h3', 'h4', 'h5', 'h6', '[role="heading"]'],
+                checkbox: ['input[type="checkbox"]', '[role="checkbox"]'],
+                radio: ['input[type="radio"]', '[role="radio"]'],
+                combobox: ['select', '[role="combobox"]', '[role="listbox"]'],
+                listbox: ['select[multiple]', '[role="listbox"]'],
+                option: ['option', '[role="option"]'],
+                menuitem: ['[role="menuitem"]', '[role="menuitemcheckbox"]', '[role="menuitemradio"]'],
+                tab: ['[role="tab"]'],
+                dialog: ['dialog', '[role="dialog"]', '[role="alertdialog"]'],
+                alert: ['[role="alert"]'],
+                img: ['img', '[role="img"]'],
+                list: ['ul', 'ol', '[role="list"]'],
+                navigation: ['nav', '[role="navigation"]'],
+                search: ['[role="search"]', 'search'],
+                region: ['section[aria-label]', '[role="region"]'],
+                form: ['form', '[role="form"]'],
+                text: ['*'],
+                StaticText: ['*'],
+            } as Record<string, string[]>)[role]) ?? [`[role="${role}"]`];
+
+            const selectorList = cssSelectors.map((s: string) => JSON.stringify(s)).join(", ");
+            const escapedName = name.replace(/\\/g, "\\\\").replace(/'/g, "\\'");
+            const usePartial = role === "text" || role === "StaticText";
+            const matchExpr = usePartial
+                ? `getAccessibleName(el).includes(target)`
+                : `getAccessibleName(el) === target`;
+
+            return `
+              const selectors = [${selectorList}];
+              const target = '${escapedName}';
+              function getAccessibleName(el) {
+                if (el.getAttribute('aria-label')) return el.getAttribute('aria-label').trim();
+                const labelledBy = el.getAttribute('aria-labelledby');
+                if (labelledBy) { const l = document.getElementById(labelledBy); if (l) return l.textContent?.trim() ?? ''; }
+                if (el.id) { const l = document.querySelector('label[for="' + el.id + '"]'); if (l) return l.textContent?.trim() ?? ''; }
+                if (el.placeholder) return el.placeholder.trim();
+                if (el.type === 'submit' || el.type === 'button') return (el.value ?? '').trim();
+                if (el.alt) return el.alt.trim();
+                if (el.title) return el.title.trim();
+                return el.textContent?.trim() ?? '';
+              }
+              const matches = [];
+              for (const sel of selectors) {
+                for (const el of parent.querySelectorAll(sel)) {
+                  if (${matchExpr}) matches.push(el);
+                }
+              }
+              ${index > 0 ? `return matches[${index - 1}] ?? null;` : `return matches[0] ?? null;`}
+            `;
+        }
+
+        // CSS child selector scoped to parent
+        if (index > 0) {
+            return `return parent.querySelectorAll(${JSON.stringify(baseSel)})[${index - 1}] ?? null;`;
+        }
+        return `return parent.querySelector(${JSON.stringify(baseSel)});`;
+    }
+
+    /**
+     * Build JS expression for an a11y selector with nth-index.
+     */
+    private buildA11yNthQueryJS(selector: string, index: number): string {
+        const match = selector.match(CdpClient.A11Y_PATTERN);
+        if (!match) throw new Error(`Invalid accessibility selector: ${selector}`);
+
+        const role = match[1]!;
+        const name = match[2]!;
+
+        const roleMap: Record<string, string[]> = {
+            button: ['button', '[role="button"]', 'input[type="button"]', 'input[type="submit"]', 'input[type="reset"]'],
+            textbox: ['input:not([type])', 'input[type="text"]', 'input[type="email"]', 'input[type="password"]', 'input[type="search"]', 'input[type="tel"]', 'input[type="url"]', 'input[type="number"]', 'textarea', '[role="textbox"]'],
+            link: ['a[href]', '[role="link"]'],
+            heading: ['h1', 'h2', 'h3', 'h4', 'h5', 'h6', '[role="heading"]'],
+            checkbox: ['input[type="checkbox"]', '[role="checkbox"]'],
+            radio: ['input[type="radio"]', '[role="radio"]'],
+            combobox: ['select', '[role="combobox"]', '[role="listbox"]'],
+            listbox: ['select[multiple]', '[role="listbox"]'],
+            option: ['option', '[role="option"]'],
+            menuitem: ['[role="menuitem"]', '[role="menuitemcheckbox"]', '[role="menuitemradio"]'],
+            tab: ['[role="tab"]'],
+            dialog: ['dialog', '[role="dialog"]', '[role="alertdialog"]'],
+            alert: ['[role="alert"]'],
+            img: ['img', '[role="img"]'],
+            list: ['ul', 'ol', '[role="list"]'],
+            navigation: ['nav', '[role="navigation"]'],
+            search: ['[role="search"]', 'search'],
+            region: ['section[aria-label]', '[role="region"]'],
+            form: ['form', '[role="form"]'],
+            text: ['*'],
+            StaticText: ['*'],
+        };
+
+        const cssSelectors = roleMap[role] ?? [`[role="${role}"]`];
+        const selectorList = cssSelectors.map((s: string) => JSON.stringify(s)).join(", ");
+        const escapedName = name.replace(/\\/g, "\\\\").replace(/'/g, "\\'");
+        const usePartial = role === "text" || role === "StaticText";
+        const matchExpr = usePartial
+            ? `getAccessibleName(el).includes(target)`
+            : `getAccessibleName(el) === target`;
+
+        return `
+      (() => {
+        const selectors = [${selectorList}];
+        const target = '${escapedName}';
+
+        function getAccessibleName(el) {
+          if (el.getAttribute('aria-label')) return el.getAttribute('aria-label').trim();
+          const labelledBy = el.getAttribute('aria-labelledby');
+          if (labelledBy) {
+            const label = document.getElementById(labelledBy);
+            if (label) return label.textContent?.trim() ?? '';
+          }
+          if (el.id) {
+            const label = document.querySelector('label[for="' + el.id + '"]');
+            if (label) return label.textContent?.trim() ?? '';
+          }
+          if (el.placeholder) return el.placeholder.trim();
+          if (el.type === 'submit' || el.type === 'button') return (el.value ?? '').trim();
+          if (el.alt) return el.alt.trim();
+          if (el.title) return el.title.trim();
+          return el.textContent?.trim() ?? '';
+        }
+
+        const matches = [];
+        for (const sel of selectors) {
+          const els = document.querySelectorAll(sel);
+          for (const el of els) {
+            if (${matchExpr}) matches.push(el);
+          }
+        }
+        return matches[${index - 1}] ?? null;
+      })()`;
     }
 
     // ── Helpers ────────────────────────────────────────────────

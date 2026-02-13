@@ -32,4 +32,4 @@ export type ServerMessage =
   | { type: "lua:toggled"; id: string; enabled: boolean }
   | { type: "lua:toggled"; id: string; enabled: boolean }
   | { type: "lua:error"; error: string }
-  | { type: "record:step"; step: string };
+  | { type: "record:step"; step: string; isFirst?: boolean };

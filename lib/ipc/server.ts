@@ -276,11 +276,11 @@ export class IpcServer {
     if (tab?.id) {
       this.recordingTabId = tab.id;
 
-      // Record initial URL
+      // Record initial URL using execution engine format
       if (tab.url) {
-        const step = `Given I open "${tab.url}"`;
+        const step = `browser open '${tab.url}'`;
         if (this.activePort) {
-          this.activePort.postMessage({ type: "record:step", step });
+          this.activePort.postMessage({ type: "record:step", step, isFirst: true });
         }
       }
 
