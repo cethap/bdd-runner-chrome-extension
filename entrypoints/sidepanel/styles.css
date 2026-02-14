@@ -45,24 +45,25 @@ body {
   background: var(--bg-secondary);
   border-bottom: 1px solid var(--border);
   padding: 0;
-  min-height: 36px;
+  min-height: 32px;
   gap: 0;
 }
 
 .tab-btn {
   flex: 1;
-  padding: 8px 12px;
+  padding: 6px 8px;
   background: transparent;
   border: none;
   border-bottom: 2px solid transparent;
   color: var(--text-muted);
-  font-size: 14px;
+  font-size: 12px;
   font-weight: 600;
   font-family: var(--font-sans);
   cursor: pointer;
   transition: all 0.2s ease;
   text-transform: uppercase;
-  letter-spacing: 0.5px;
+  letter-spacing: 0.3px;
+  white-space: nowrap;
 }
 
 .tab-btn:hover {
@@ -89,179 +90,347 @@ body {
   display: flex;
 }
 
-/* ── Scenarios Panel ── */
+/* ── Test Explorer (Scenarios Panel) ── */
 #scenarios-panel {
   display: flex;
   flex-direction: column;
   height: 100%;
   overflow: hidden;
+  background: var(--bg-primary);
 }
 
-.scenarios-header {
+/* Toolbar */
+.te-toolbar {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 10px 12px;
+  padding: 6px 10px;
   background: var(--bg-secondary);
   border-bottom: 1px solid var(--border);
-}
-
-.scenarios-title {
-  font-size: 14px;
-  font-weight: 600;
-  color: var(--text-secondary);
-}
-
-.scenarios-controls {
-  display: flex;
-  gap: 6px;
-}
-
-.scenarios-run-btn {
-  font-size: 11px !important;
-  padding: 3px 10px !important;
-}
-
-.scenario-select-all {
-  display: flex;
-  align-items: center;
+  min-height: 32px;
   gap: 8px;
-  padding: 6px 12px;
-  border-bottom: 1px solid var(--border);
-  background: var(--bg-secondary);
 }
 
-.scenario-select-all input[type="checkbox"] {
-  accent-color: var(--accent);
-  cursor: pointer;
-}
-
-.scenario-select-all-label {
+.te-summary {
   font-size: 11px;
+  font-weight: 600;
   color: var(--text-muted);
   text-transform: uppercase;
-  letter-spacing: 0.4px;
-}
-
-.scenarios-list {
-  flex: 1;
-  overflow-y: auto;
-  padding: 4px 0;
-}
-
-.scenario-group-header {
-  padding: 8px 12px 4px;
-  font-size: 12px;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.6px;
-  color: var(--text-muted);
-}
-
-.scenario-item {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 6px 12px;
-  cursor: default;
-  transition: background 0.1s;
-}
-
-.scenario-item:hover {
-  background: var(--bg-surface);
-}
-
-.scenario-item input[type="checkbox"] {
-  accent-color: var(--accent);
-  cursor: pointer;
-  flex-shrink: 0;
-}
-
-.scenario-item-name {
-  flex: 1;
-  font-size: 14px;
-  color: var(--text-primary);
-  overflow: hidden;
-  text-overflow: ellipsis;
+  letter-spacing: 0.3px;
   white-space: nowrap;
 }
 
-.scenario-item-steps {
-  font-size: 12px;
-  color: var(--text-muted);
-  flex-shrink: 0;
+.te-actions {
+  display: flex;
+  gap: 4px;
+  align-items: center;
 }
 
-.scenario-play-btn {
-  background: none;
-  border: 1px solid var(--border);
+.te-action-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: none;
   border-radius: 4px;
-  color: var(--accent);
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: 12px;
   cursor: pointer;
-  font-size: 10px;
-  padding: 2px 6px;
   transition: all 0.15s;
-  flex-shrink: 0;
-  opacity: 0;
 }
 
-.scenario-item:hover .scenario-play-btn {
-  opacity: 1;
+.te-action-btn:hover {
+  background: var(--bg-surface);
+  color: var(--text-primary);
 }
 
-.scenario-play-btn:hover {
-  background: rgba(137, 180, 250, 0.15);
-  border-color: var(--accent);
+.te-action-btn.te-run {
+  color: var(--green);
 }
 
-.scenarios-empty {
+.te-action-btn.te-run:hover {
+  background: rgba(166, 227, 161, 0.12);
+}
+
+.te-action-btn.te-stop {
+  color: var(--red);
+}
+
+.te-action-btn.te-stop:hover {
+  background: rgba(243, 139, 168, 0.12);
+}
+
+.te-action-btn:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
+}
+
+/* Tree container */
+.te-tree {
+  flex: 1;
+  overflow-y: auto;
+  padding: 2px 0;
+}
+
+/* Empty state */
+.te-empty {
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
   padding: 40px 20px;
-  gap: 8px;
+  gap: 6px;
 }
 
-.scenarios-empty-icon {
-  font-size: 32px;
-  opacity: 0.6;
+.te-empty-icon {
+  font-size: 28px;
+  opacity: 0.5;
 }
 
-.scenarios-empty-text {
-  font-size: 14px;
+.te-empty-text {
+  font-size: 13px;
   color: var(--text-secondary);
   font-weight: 500;
 }
 
-.scenarios-empty-hint {
-  font-size: 12px;
+.te-empty-hint {
+  font-size: 11px;
   color: var(--text-muted);
 }
+
+/* Tree row (shared) */
+.te-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 8px;
+  height: 26px;
+  cursor: pointer;
+  transition: background 0.1s;
+  position: relative;
+  user-select: none;
+}
+
+.te-row:hover {
+  background: var(--bg-surface);
+}
+
+/* Chevron for collapsible nodes */
+.te-chevron {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  font-size: 12px;
+  color: var(--text-muted);
+  transition: transform 0.15s ease;
+  flex-shrink: 0;
+}
+
+.te-chevron.expanded {
+  transform: rotate(90deg);
+}
+
+/* Checkbox */
+.te-checkbox {
+  accent-color: var(--accent);
+  cursor: pointer;
+  flex-shrink: 0;
+  width: 13px;
+  height: 13px;
+  margin: 0;
+}
+
+/* Icon */
+.te-icon {
+  flex-shrink: 0;
+  font-size: 12px;
+  width: 16px;
+  text-align: center;
+  line-height: 1;
+}
+
+.te-icon-file {
+  font-size: 13px;
+}
+
+.te-icon-feature {
+  color: var(--accent);
+  font-size: 10px;
+}
+
+.te-icon-scenario {
+  color: var(--text-muted);
+  font-size: 11px;
+}
+
+/* Label */
+.te-label {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+}
+
+.te-label-file {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.te-label-feature {
+  font-size: 12px;
+  color: var(--text-secondary);
+  font-style: italic;
+}
+
+.te-label-scenario {
+  font-size: 12px;
+  color: var(--text-primary);
+}
+
+/* Count badge */
+.te-badge {
+  font-size: 10px;
+  color: var(--text-muted);
+  background: var(--bg-surface);
+  border-radius: 8px;
+  padding: 1px 6px;
+  flex-shrink: 0;
+  font-family: var(--font-mono);
+}
+
+/* Steps meta */
+.te-meta {
+  font-size: 10px;
+  color: var(--text-muted);
+  flex-shrink: 0;
+  white-space: nowrap;
+  font-family: var(--font-mono);
+}
+
+/* Play button (hover reveal) */
+.te-play-btn {
+  display: none;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  border: none;
+  border-radius: 3px;
+  background: transparent;
+  color: var(--green);
+  font-size: 10px;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: all 0.12s;
+}
+
+.te-row:hover .te-play-btn {
+  display: inline-flex;
+}
+
+.te-row:hover .te-meta {
+  display: none;
+}
+
+.te-play-btn:hover {
+  background: rgba(166, 227, 161, 0.15);
+}
+
+/* Tree guide lines */
+.te-guide {
+  width: 16px;
+  flex-shrink: 0;
+  position: relative;
+  align-self: stretch;
+}
+
+.te-guide::before {
+  content: "";
+  position: absolute;
+  left: 7px;
+  top: 0;
+  bottom: 0;
+  width: 1px;
+  background: var(--border);
+}
+
+.te-guide.te-guide-last::before {
+  bottom: 50%;
+}
+
+.te-guide::after {
+  content: "";
+  position: absolute;
+  left: 7px;
+  top: 50%;
+  width: 8px;
+  height: 1px;
+  background: var(--border);
+}
+
+/* Children container */
+.te-children {
+  margin-left: 8px;
+}
+
+/* File row — no guide */
+.te-row-file {
+  padding-left: 4px;
+}
+
+/* Feature sub-row */
+.te-row-feature {
+  cursor: default;
+}
+
+/* Scenario row states */
+.te-row-scenario.selected {
+  border-left: 2px solid var(--accent);
+}
+
+.te-row-scenario:not(.selected) .te-label-scenario {
+  color: var(--text-muted);
+}
+
+.te-row-scenario:not(.selected) .te-icon-scenario {
+  opacity: 0.5;
+}
+
 
 /* Toolbar */
 #toolbar {
   display: flex;
   align-items: center;
-  gap: 6px;
-  padding: 6px 10px;
+  gap: 4px;
+  padding: 4px 6px;
   background: var(--bg-secondary);
   border-bottom: 1px solid var(--border);
-  min-height: 38px;
+  min-height: 34px;
+  flex-wrap: wrap;
 }
 
 .toolbar-btn {
   display: inline-flex;
   align-items: center;
-  gap: 4px;
-  padding: 4px 10px;
+  gap: 3px;
+  padding: 3px 8px;
   border: 1px solid var(--border);
   border-radius: 4px;
   background: var(--bg-surface);
   color: var(--text-primary);
-  font-size: 13px;
+  font-size: 12px;
   cursor: pointer;
   transition: background 0.15s;
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 
 .toolbar-btn:hover {
@@ -291,16 +460,20 @@ body {
 
 .toolbar-separator {
   width: 1px;
-  height: 20px;
+  height: 16px;
   background: var(--border);
-  margin: 0 4px;
+  margin: 0 2px;
 }
 
 .toolbar-filename {
-  font-size: 12px;
+  font-size: 11px;
   color: var(--text-secondary);
   margin-left: auto;
   font-family: var(--font-mono);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
 }
 
 /* Main content */
@@ -313,12 +486,15 @@ body {
 
 /* File manager sidebar */
 #file-manager {
-  width: 180px;
+  width: 140px;
+  min-width: 100px;
+  max-width: 180px;
   background: var(--bg-secondary);
   border-right: 1px solid var(--border);
   display: flex;
   flex-direction: column;
   overflow: hidden;
+  flex-shrink: 0;
 }
 
 #file-manager.collapsed {
@@ -415,15 +591,16 @@ body {
 
 #editor .cm-scroller {
   font-family: var(--font-mono);
-  font-size: 15px;
-  line-height: 1.5;
+  font-size: 14px;
+  line-height: 1.45;
 }
 
-/* Results panel */
+/* ── Results panel ── */
 #results-panel {
-  background: var(--bg-secondary);
+  background: var(--bg-primary);
   flex: 1;
   overflow-y: auto;
+  scroll-behavior: smooth;
 }
 
 #results-panel.visible {
@@ -434,16 +611,19 @@ body {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 6px 10px;
+  padding: 8px 12px;
   font-size: 11px;
   font-weight: 600;
   text-transform: uppercase;
-  letter-spacing: 0.5px;
-  color: var(--text-muted);
+  letter-spacing: 0.4px;
+  color: var(--text-secondary);
   border-bottom: 1px solid var(--border);
   position: sticky;
   top: 0;
-  background: var(--bg-secondary);
+  z-index: 10;
+  background: linear-gradient(180deg, var(--bg-secondary) 0%, rgba(24, 24, 37, 0.95) 100%);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
 }
 
 .results-close {
@@ -455,16 +635,22 @@ body {
 }
 
 .results-list {
-  padding: 4px 0;
+  padding: 6px 0 12px;
 }
 
+/* Feature header */
 .result-feature-header {
-  padding: 10px 12px 6px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 10px 12px 8px;
   font-size: 13px;
   font-weight: 700;
   color: var(--accent);
   border-top: 1px solid var(--border);
-  margin-top: 4px;
+  margin-top: 6px;
+  background: rgba(137, 180, 250, 0.04);
+  border-left: 3px solid var(--accent);
 }
 
 .result-feature-header:first-child {
@@ -472,26 +658,41 @@ body {
   margin-top: 0;
 }
 
+/* Scenario header */
 .result-scenario-header {
-  padding: 6px 12px 4px 16px;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 8px 12px 5px 16px;
   font-size: 12px;
   font-weight: 600;
   color: var(--peach);
+  margin-top: 2px;
+  border-left: 3px solid transparent;
 }
 
+/* Step result row */
 .step-result {
   display: flex;
-  align-items: flex-start;
-  gap: 8px;
-  padding: 4px 10px;
-  font-size: 14px;
+  align-items: baseline;
+  gap: 6px;
+  padding: 5px 12px 5px 20px;
+  font-size: 13px;
   font-family: var(--font-mono);
+  transition: background 0.1s;
+  border-left: 3px solid transparent;
+}
+
+.step-result:hover {
+  background: rgba(205, 214, 244, 0.03);
 }
 
 .step-result .icon {
   flex-shrink: 0;
-  width: 16px;
+  width: 14px;
   text-align: center;
+  font-size: 12px;
+  line-height: 1.5;
 }
 
 .step-result.passed .icon {
@@ -508,46 +709,87 @@ body {
 
 .step-result.running .icon {
   color: var(--yellow);
+  animation: pulse 1s ease-in-out infinite;
 }
 
 .step-result .text {
   flex: 1;
   color: var(--text-secondary);
   word-break: break-word;
+  line-height: 1.4;
+  min-width: 0;
+}
+
+.step-result.passed .text {
+  color: var(--text-primary);
 }
 
 .step-result.failed .text {
   color: var(--red);
 }
 
+/* Step error block */
 .step-error {
-  margin: 2px 0 4px 24px;
-  padding: 4px 8px;
-  background: rgba(243, 139, 168, 0.1);
+  margin: 4px 12px 6px 40px;
+  padding: 6px 10px;
+  background: rgba(243, 139, 168, 0.08);
   border-left: 2px solid var(--red);
+  border-radius: 0 4px 4px 0;
   font-size: 11px;
   color: var(--red);
   font-family: var(--font-mono);
+  line-height: 1.4;
+  word-break: break-word;
 }
 
+/* Step response / print output block */
 .step-response {
-  margin: 2px 0 4px 24px;
-  padding: 4px 8px;
+  margin: 4px 12px 6px 40px;
+  padding: 8px 10px;
   background: var(--bg-surface);
-  border-radius: 3px;
+  border-radius: 4px;
+  border: 1px solid var(--border);
   font-size: 11px;
   color: var(--text-secondary);
   font-family: var(--font-mono);
-  max-height: 120px;
+  max-height: 150px;
   overflow-y: auto;
   white-space: pre-wrap;
   word-break: break-all;
+  line-height: 1.45;
 }
 
+/* Screenshot container */
+.step-screenshot {
+  margin: 6px 12px 8px 40px;
+  border-radius: 6px;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  background: var(--bg-surface);
+}
+
+.step-screenshot img {
+  display: block;
+  width: 100%;
+  height: auto;
+  border-radius: 5px;
+  cursor: pointer;
+  transition: opacity 0.15s;
+}
+
+.step-screenshot img:hover {
+  opacity: 0.85;
+}
+
+/* Step timing badge */
 .step-timing {
   color: var(--text-muted);
-  font-size: 11px;
+  font-size: 10px;
   flex-shrink: 0;
+  font-family: var(--font-mono);
+  min-width: 30px;
+  text-align: right;
+  opacity: 0.7;
 }
 
 /* Script Manager */
@@ -749,4 +991,113 @@ body {
 
 ::-webkit-scrollbar-thumb:hover {
   background: var(--text-muted);
+}
+
+/* ── Record button ── */
+.toolbar-btn.record {
+  border-color: var(--red);
+  color: var(--red);
+}
+
+.toolbar-btn.recording {
+  background: var(--red);
+  color: var(--bg-primary);
+  border-color: var(--red);
+  animation: pulse 1s ease-in-out infinite;
+}
+
+/* ── Responsive: narrow panels ── */
+@media (max-width: 400px) {
+  .tab-btn {
+    font-size: 11px;
+    padding: 5px 6px;
+    letter-spacing: 0.2px;
+  }
+
+  #toolbar {
+    gap: 3px;
+    padding: 3px 4px;
+    min-height: 30px;
+  }
+
+  .toolbar-btn {
+    font-size: 11px;
+    padding: 2px 6px;
+  }
+
+  .toolbar-separator {
+    display: none;
+  }
+
+  .toolbar-filename {
+    display: none;
+  }
+
+  #file-manager {
+    width: 110px;
+    min-width: 80px;
+  }
+
+  #editor .cm-scroller {
+    font-size: 13px;
+  }
+
+  .file-list-header {
+    font-size: 10px;
+    padding: 6px 8px;
+  }
+
+  .file-item {
+    font-size: 11px;
+    padding: 4px 8px;
+  }
+
+  /* Results responsive */
+  .result-feature-header {
+    font-size: 12px;
+    padding: 8px 10px 6px;
+  }
+
+  .result-scenario-header {
+    font-size: 11px;
+    padding: 6px 10px 4px 14px;
+  }
+
+  .step-result {
+    font-size: 12px;
+    padding: 4px 10px 4px 16px;
+    gap: 5px;
+  }
+
+  .step-response,
+  .step-error {
+    margin-left: 30px;
+    margin-right: 8px;
+    font-size: 10px;
+  }
+
+  .step-screenshot {
+    margin-left: 30px;
+    margin-right: 8px;
+  }
+
+  /* Test Explorer responsive */
+  .te-row {
+    height: 24px;
+    padding: 2px 6px;
+    gap: 3px;
+  }
+
+  .te-label-file {
+    font-size: 12px;
+  }
+
+  .te-label-scenario,
+  .te-label-feature {
+    font-size: 11px;
+  }
+
+  .te-children {
+    margin-left: 4px;
+  }
 }

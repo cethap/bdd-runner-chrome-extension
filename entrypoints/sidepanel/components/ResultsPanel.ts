@@ -106,10 +106,6 @@ export class ResultsPanel {
       const img = document.createElement("img");
       img.src = `data:image/png;base64,${result.screenshot}`;
       img.alt = "Page screenshot";
-      img.style.maxWidth = "100%";
-      img.style.borderRadius = "4px";
-      img.style.marginTop = "4px";
-      img.style.cursor = "pointer";
       img.addEventListener("click", () => {
         // Open full-size in new tab
         const win = window.open();

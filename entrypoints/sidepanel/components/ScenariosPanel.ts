@@ -17,11 +17,19 @@ export type ScenariosPanelCallbacks = {
     onStop: () => void;
 };
 
+type TreeNode = {
+    fileName: string;
+    featureName: string;
+    items: ScenarioItem[];
+    expanded: boolean;
+};
+
 export class ScenariosPanel {
     private container: HTMLElement;
     private items: ScenarioItem[] = [];
     private callbacks: ScenariosPanelCallbacks;
     private running = false;
+    private treeState = new Map<string, boolean>(); // fileName -> expanded
 
     constructor(container: HTMLElement, callbacks: ScenariosPanelCallbacks) {
         this.container = container;
@@ -46,6 +54,14 @@ export class ScenariosPanel {
             }
         }
 
+        // Initialize tree state for new files (default expanded)
+        const fileNames = new Set(this.items.map((i) => i.fileName));
+        for (const name of fileNames) {
+            if (!this.treeState.has(name)) {
+                this.treeState.set(name, true);
+            }
+        }
+
         this.render();
     }
 
@@ -54,145 +70,269 @@ export class ScenariosPanel {
         this.render();
     }
 
+    private buildTree(): TreeNode[] {
+        const nodes: TreeNode[] = [];
+        const seen = new Map<string, TreeNode>();
+
+        for (const item of this.items) {
+            if (!seen.has(item.fileName)) {
+                const node: TreeNode = {
+                    fileName: item.fileName,
+                    featureName: item.featureName,
+                    items: [],
+                    expanded: this.treeState.get(item.fileName) ?? true,
+                };
+                seen.set(item.fileName, node);
+                nodes.push(node);
+            }
+            seen.get(item.fileName)!.items.push(item);
+        }
+
+        return nodes;
+    }
+
     private render(): void {
         this.container.innerHTML = "";
 
-        // ── Header with controls ──
-        const header = document.createElement("div");
-        header.className = "scenarios-header";
-
-        const title = document.createElement("span");
-        title.className = "scenarios-title";
+        const tree = this.buildTree();
         const selectedCount = this.items.filter((i) => i.selected).length;
-        title.textContent = `Scenarios (${selectedCount}/${this.items.length})`;
-        header.appendChild(title);
+        const totalCount = this.items.length;
 
-        const controls = document.createElement("div");
-        controls.className = "scenarios-controls";
+        // ── Toolbar ──
+        const toolbar = document.createElement("div");
+        toolbar.className = "te-toolbar";
+
+        const summary = document.createElement("span");
+        summary.className = "te-summary";
+        summary.textContent = `${selectedCount}/${totalCount} scenarios`;
+        toolbar.appendChild(summary);
+
+        const actions = document.createElement("div");
+        actions.className = "te-actions";
 
         if (!this.running) {
-            const runAllBtn = document.createElement("button");
-            runAllBtn.className = "toolbar-btn primary scenarios-run-btn";
-            runAllBtn.textContent = "▶ Run All";
-            runAllBtn.disabled = this.items.length === 0;
-            runAllBtn.addEventListener("click", () => this.callbacks.onRunAll());
-            controls.appendChild(runAllBtn);
+            const runAllBtn = this.createIconButton("▶", "Run All", "te-action-btn te-run", () =>
+                this.callbacks.onRunAll(),
+            );
+            runAllBtn.disabled = totalCount === 0;
+            actions.appendChild(runAllBtn);
 
-            if (selectedCount > 0 && selectedCount < this.items.length) {
-                const runSelBtn = document.createElement("button");
-                runSelBtn.className = "toolbar-btn scenarios-run-btn";
-                runSelBtn.textContent = `▶ Run ${selectedCount}`;
-                runSelBtn.addEventListener("click", () => {
-                    this.callbacks.onRunSelected(this.items.filter((i) => i.selected));
-                });
-                controls.appendChild(runSelBtn);
+            if (selectedCount > 0 && selectedCount < totalCount) {
+                const runSelBtn = this.createIconButton(
+                    "▶",
+                    `Run ${selectedCount} selected`,
+                    "te-action-btn",
+                    () => this.callbacks.onRunSelected(this.items.filter((i) => i.selected)),
+                );
+                actions.appendChild(runSelBtn);
             }
+
+            // Collapse/Expand all
+            const allExpanded = tree.every((n) => n.expanded);
+            const toggleIcon = allExpanded ? "⊟" : "⊞";
+            const toggleBtn = this.createIconButton(
+                toggleIcon,
+                allExpanded ? "Collapse All" : "Expand All",
+                "te-action-btn",
+                () => {
+                    const newState = !allExpanded;
+                    for (const node of tree) {
+                        this.treeState.set(node.fileName, newState);
+                    }
+                    this.render();
+                },
+            );
+            actions.appendChild(toggleBtn);
         } else {
-            const stopBtn = document.createElement("button");
-            stopBtn.className = "toolbar-btn danger";
-            stopBtn.textContent = "■ Stop";
-            stopBtn.addEventListener("click", () => this.callbacks.onStop());
-            controls.appendChild(stopBtn);
+            const stopBtn = this.createIconButton("■", "Stop", "te-action-btn te-stop", () =>
+                this.callbacks.onStop(),
+            );
+            actions.appendChild(stopBtn);
         }
 
-        header.appendChild(controls);
-        this.container.appendChild(header);
+        toolbar.appendChild(actions);
+        this.container.appendChild(toolbar);
 
-        // ── Select all checkbox ──
-        if (this.items.length > 0) {
-            const selectAll = document.createElement("div");
-            selectAll.className = "scenario-select-all";
-
-            const checkbox = document.createElement("input");
-            checkbox.type = "checkbox";
-            checkbox.checked = this.items.every((i) => i.selected);
-            checkbox.indeterminate =
-                this.items.some((i) => i.selected) && !this.items.every((i) => i.selected);
-            checkbox.addEventListener("change", () => {
-                const checked = checkbox.checked;
-                for (const item of this.items) item.selected = checked;
-                this.render();
-            });
-            selectAll.appendChild(checkbox);
-
-            const label = document.createElement("span");
-            label.textContent = "Select all";
-            label.className = "scenario-select-all-label";
-            selectAll.appendChild(label);
-
-            this.container.appendChild(selectAll);
-        }
-
-        // ── Scenario list ──
+        // ── Tree ──
         const list = document.createElement("div");
-        list.className = "scenarios-list";
+        list.className = "te-tree";
 
-        if (this.items.length === 0) {
+        if (totalCount === 0) {
             const empty = document.createElement("div");
-            empty.className = "scenarios-empty";
+            empty.className = "te-empty";
             empty.innerHTML = `
-        <div class="scenarios-empty-icon">📋</div>
-        <div class="scenarios-empty-text">No saved scenarios</div>
-        <div class="scenarios-empty-hint">Save feature files in the Editor tab first</div>
-      `;
+                <span class="te-empty-icon">📋</span>
+                <span class="te-empty-text">No scenarios found</span>
+                <span class="te-empty-hint">Save feature files in the Editor tab</span>
+            `;
             list.appendChild(empty);
         }
 
-        // Group by feature
-        const groups = new Map<string, ScenarioItem[]>();
-        for (const item of this.items) {
-            const key = `${item.fileName}`;
-            if (!groups.has(key)) groups.set(key, []);
-            groups.get(key)!.push(item);
-        }
+        for (const node of tree) {
+            // Feature file node (top level)
+            const fileNode = document.createElement("div");
+            fileNode.className = "te-node te-file-node";
 
-        for (const [fileName, groupItems] of groups) {
-            // Feature group header
-            const groupHeader = document.createElement("div");
-            groupHeader.className = "scenario-group-header";
-            groupHeader.textContent = fileName.replace(".feature", "");
-            list.appendChild(groupHeader);
+            const fileRow = document.createElement("div");
+            fileRow.className = "te-row te-row-file";
 
-            for (const item of groupItems) {
-                const row = document.createElement("div");
-                row.className = "scenario-item";
+            // Expand/collapse chevron
+            const chevron = document.createElement("span");
+            chevron.className = `te-chevron ${node.expanded ? "expanded" : ""}`;
+            chevron.textContent = "›";
+            fileRow.appendChild(chevron);
 
-                const checkbox = document.createElement("input");
-                checkbox.type = "checkbox";
-                checkbox.checked = item.selected;
-                checkbox.addEventListener("change", () => {
-                    item.selected = checkbox.checked;
-                    this.render();
-                });
-                row.appendChild(checkbox);
+            // File checkbox
+            const fileCheckbox = document.createElement("input");
+            fileCheckbox.type = "checkbox";
+            fileCheckbox.className = "te-checkbox";
+            const allSelected = node.items.every((i) => i.selected);
+            const someSelected = node.items.some((i) => i.selected);
+            fileCheckbox.checked = allSelected;
+            fileCheckbox.indeterminate = someSelected && !allSelected;
+            fileCheckbox.addEventListener("change", (e) => {
+                e.stopPropagation();
+                const checked = fileCheckbox.checked;
+                for (const item of node.items) item.selected = checked;
+                this.render();
+            });
+            fileRow.appendChild(fileCheckbox);
 
-                const name = document.createElement("span");
-                name.className = "scenario-item-name";
-                name.textContent = item.scenario.name;
-                name.title = `${item.featureName} → ${item.scenario.name}`;
-                row.appendChild(name);
+            // File icon
+            const fileIcon = document.createElement("span");
+            fileIcon.className = "te-icon te-icon-file";
+            fileIcon.textContent = "📄";
+            fileRow.appendChild(fileIcon);
 
-                const stepsCount = document.createElement("span");
-                stepsCount.className = "scenario-item-steps";
-                stepsCount.textContent = `${item.scenario.steps.length} steps`;
-                row.appendChild(stepsCount);
+            // File name
+            const fileName = document.createElement("span");
+            fileName.className = "te-label te-label-file";
+            fileName.textContent = node.fileName;
+            fileName.title = node.fileName;
+            fileRow.appendChild(fileName);
 
-                if (!this.running) {
-                    const playBtn = document.createElement("button");
-                    playBtn.className = "scenario-play-btn";
-                    playBtn.textContent = "▶";
-                    playBtn.title = "Run this scenario";
-                    playBtn.addEventListener("click", (e) => {
+            // Scenario count badge
+            const badge = document.createElement("span");
+            badge.className = "te-badge";
+            badge.textContent = `${node.items.length}`;
+            fileRow.appendChild(badge);
+
+            // Click to expand/collapse
+            fileRow.addEventListener("click", (e) => {
+                if ((e.target as HTMLElement).tagName === "INPUT") return;
+                node.expanded = !node.expanded;
+                this.treeState.set(node.fileName, node.expanded);
+                this.render();
+            });
+
+            fileNode.appendChild(fileRow);
+
+            // Children (scenarios)
+            if (node.expanded) {
+                const children = document.createElement("div");
+                children.className = "te-children";
+
+                // Feature name sub-header
+                const featureRow = document.createElement("div");
+                featureRow.className = "te-row te-row-feature";
+
+                const featureGuide = document.createElement("span");
+                featureGuide.className = "te-guide";
+                featureRow.appendChild(featureGuide);
+
+                const featureIcon = document.createElement("span");
+                featureIcon.className = "te-icon te-icon-feature";
+                featureIcon.textContent = "◆";
+                featureRow.appendChild(featureIcon);
+
+                const featureLabel = document.createElement("span");
+                featureLabel.className = "te-label te-label-feature";
+                featureLabel.textContent = node.featureName;
+                featureLabel.title = node.featureName;
+                featureRow.appendChild(featureLabel);
+
+                children.appendChild(featureRow);
+
+                // Scenario items
+                for (let i = 0; i < node.items.length; i++) {
+                    const item = node.items[i]!;
+                    const isLast = i === node.items.length - 1;
+
+                    const scenarioRow = document.createElement("div");
+                    scenarioRow.className = `te-row te-row-scenario ${item.selected ? "selected" : ""}`;
+
+                    // Tree guide
+                    const guide = document.createElement("span");
+                    guide.className = `te-guide ${isLast ? "te-guide-last" : ""}`;
+                    scenarioRow.appendChild(guide);
+
+                    // Checkbox
+                    const checkbox = document.createElement("input");
+                    checkbox.type = "checkbox";
+                    checkbox.className = "te-checkbox";
+                    checkbox.checked = item.selected;
+                    checkbox.addEventListener("change", (e) => {
                         e.stopPropagation();
-                        this.callbacks.onRunSingle(item);
+                        item.selected = checkbox.checked;
+                        this.render();
                     });
-                    row.appendChild(playBtn);
+                    scenarioRow.appendChild(checkbox);
+
+                    // Status icon
+                    const statusIcon = document.createElement("span");
+                    statusIcon.className = "te-icon te-icon-scenario";
+                    statusIcon.textContent = "○";
+                    scenarioRow.appendChild(statusIcon);
+
+                    // Name
+                    const name = document.createElement("span");
+                    name.className = "te-label te-label-scenario";
+                    name.textContent = item.scenario.name;
+                    name.title = `${item.featureName} → ${item.scenario.name}`;
+                    scenarioRow.appendChild(name);
+
+                    // Steps count
+                    const steps = document.createElement("span");
+                    steps.className = "te-meta";
+                    steps.textContent = `${item.scenario.steps.length} steps`;
+                    scenarioRow.appendChild(steps);
+
+                    // Play button (hover reveal)
+                    if (!this.running) {
+                        const playBtn = document.createElement("button");
+                        playBtn.className = "te-play-btn";
+                        playBtn.textContent = "▶";
+                        playBtn.title = "Run scenario";
+                        playBtn.addEventListener("click", (e) => {
+                            e.stopPropagation();
+                            this.callbacks.onRunSingle(item);
+                        });
+                        scenarioRow.appendChild(playBtn);
+                    }
+
+                    children.appendChild(scenarioRow);
                 }
 
-                list.appendChild(row);
+                fileNode.appendChild(children);
             }
+
+            list.appendChild(fileNode);
         }
 
         this.container.appendChild(list);
+    }
+
+    private createIconButton(
+        icon: string,
+        title: string,
+        className: string,
+        onClick: () => void,
+    ): HTMLButtonElement {
+        const btn = document.createElement("button");
+        btn.className = className;
+        btn.textContent = icon;
+        btn.title = title;
+        btn.addEventListener("click", onClick);
+        return btn;
     }
 }
