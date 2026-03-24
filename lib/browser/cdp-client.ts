@@ -1,4 +1,6 @@
 import type { BrowserTarget, BoundingBox } from "./types";
+import { selectorsForRole } from "@/lib/a11y/role-map";
+import { ACCESSIBLE_NAME_FN_BODY } from "@/lib/a11y/accessible-name";
 
 /**
  * CDP Client — wraps chrome.debugger to provide high-level browser automation.
@@ -144,6 +146,57 @@ export class CdpClient {
         return await this.evaluate<string>("window.location.href");
     }
 
+    // ── Frame switching ─────────────────────────────────────────
+
+    /** ID of the frame currently targeted for evaluate/queries. null = top frame. */
+    private frameContextId: number | null = null;
+
+    /**
+     * Switch execution context to an iframe matched by a CSS selector
+     * (e.g. `iframe[title="reCAPTCHA"]`).
+     */
+    async switchToFrame(selector: string): Promise<void> {
+        // 1. Find the iframe element in the CURRENT context and get its src/name
+        const frameInfo = await this.evaluate<{ url: string; name: string } | null>(`
+            (() => {
+                const iframe = document.querySelector(${JSON.stringify(selector)});
+                if (!iframe) return null;
+                return { url: iframe.src || '', name: iframe.name || '' };
+            })()
+        `);
+        if (!frameInfo) throw new Error(`No iframe found for selector: ${selector}`);
+
+        // 2. Get the frame tree from CDP
+        const { frameTree } = await this.send<{
+            frameTree: {
+                frame: { id: string; url: string; name: string };
+                childFrames?: Array<{ frame: { id: string; url: string; name: string } }>;
+            };
+        }>("Page.getFrameTree");
+
+        // 3. Find the matching child frame
+        const children = frameTree.childFrames ?? [];
+        const match = children.find((child) => {
+            if (frameInfo.name && child.frame.name === frameInfo.name) return true;
+            if (frameInfo.url && child.frame.url === frameInfo.url) return true;
+            return false;
+        });
+        if (!match) throw new Error(`Could not find frame in frame tree for: ${selector}`);
+
+        // 4. Get an execution context for that frame
+        //    We create an isolated world to get a reliable context ID
+        const { executionContextId } = await this.send<{ executionContextId: number }>(
+            "Page.createIsolatedWorld",
+            { frameId: match.frame.id, worldName: "gherkin-frame-ctx", grantUniveralAccess: true }
+        );
+        this.frameContextId = executionContextId;
+    }
+
+    /** Switch back to the top-level frame. */
+    async switchToMainFrame(): Promise<void> {
+        this.frameContextId = null;
+    }
+
     // ── Evaluate JS ────────────────────────────────────────────
 
     async evaluate<T = unknown>(expression: string): Promise<T> {
@@ -160,6 +213,7 @@ export class CdpClient {
             expression,
             returnByValue: true,
             awaitPromise: true,
+            ...(this.frameContextId ? { contextId: this.frameContextId } : {}),
         });
 
         if (result.exceptionDetails) {
@@ -469,32 +523,7 @@ export class CdpClient {
         const role = match[1]!;
         const name = match[2]!;
 
-        // Map accessibility roles to possible HTML elements + ARIA role selectors
-        const roleMap: Record<string, string[]> = {
-            button: ['button', '[role="button"]', 'input[type="button"]', 'input[type="submit"]', 'input[type="reset"]'],
-            textbox: ['input:not([type])', 'input[type="text"]', 'input[type="email"]', 'input[type="password"]', 'input[type="search"]', 'input[type="tel"]', 'input[type="url"]', 'input[type="number"]', 'textarea', '[role="textbox"]'],
-            link: ['a[href]', '[role="link"]'],
-            heading: ['h1', 'h2', 'h3', 'h4', 'h5', 'h6', '[role="heading"]'],
-            checkbox: ['input[type="checkbox"]', '[role="checkbox"]'],
-            radio: ['input[type="radio"]', '[role="radio"]'],
-            combobox: ['select', '[role="combobox"]', '[role="listbox"]'],
-            listbox: ['select[multiple]', '[role="listbox"]'],
-            option: ['option', '[role="option"]'],
-            menuitem: ['[role="menuitem"]', '[role="menuitemcheckbox"]', '[role="menuitemradio"]'],
-            tab: ['[role="tab"]'],
-            dialog: ['dialog', '[role="dialog"]', '[role="alertdialog"]'],
-            alert: ['[role="alert"]'],
-            img: ['img', '[role="img"]'],
-            list: ['ul', 'ol', '[role="list"]'],
-            navigation: ['nav', '[role="navigation"]'],
-            search: ['[role="search"]', 'search'],
-            region: ['section[aria-label]', '[role="region"]'],
-            form: ['form', '[role="form"]'],
-            text: ['*'],
-            StaticText: ['*'],
-        };
-
-        const cssSelectors = roleMap[role] ?? [`[role="${role}"]`];
+        const cssSelectors = selectorsForRole(role);
         const selectorList = cssSelectors.map((s: string) => JSON.stringify(s)).join(", ");
         const escapedName = name.replace(/\\/g, "\\\\").replace(/'/g, "\\'");
         // text/StaticText use partial matching; everything else uses exact match
@@ -508,31 +537,7 @@ export class CdpClient {
         const selectors = [${selectorList}];
         const target = '${escapedName}';
 
-        function getAccessibleName(el) {
-          // 1. aria-label
-          if (el.getAttribute('aria-label')) return el.getAttribute('aria-label').trim();
-          // 2. aria-labelledby
-          const labelledBy = el.getAttribute('aria-labelledby');
-          if (labelledBy) {
-            const label = document.getElementById(labelledBy);
-            if (label) return label.textContent?.trim() ?? '';
-          }
-          // 3. <label> for inputs
-          if (el.id) {
-            const label = document.querySelector('label[for="' + el.id + '"]');
-            if (label) return label.textContent?.trim() ?? '';
-          }
-          // 4. placeholder (for inputs)
-          if (el.placeholder) return el.placeholder.trim();
-          // 5. value (for submit buttons)
-          if (el.type === 'submit' || el.type === 'button') return (el.value ?? '').trim();
-          // 6. alt (for images)
-          if (el.alt) return el.alt.trim();
-          // 7. title attribute
-          if (el.title) return el.title.trim();
-          // 8. textContent as fallback
-          return el.textContent?.trim() ?? '';
-        }
+        function getAccessibleName(el) { ${ACCESSIBLE_NAME_FN_BODY} }
 
         let best = null;
         let bestLen = Infinity;
@@ -615,29 +620,7 @@ export class CdpClient {
 
             const role = match[1]!;
             const name = match[2]!;
-            const cssSelectors = (({
-                button: ['button', '[role="button"]', 'input[type="button"]', 'input[type="submit"]', 'input[type="reset"]'],
-                textbox: ['input:not([type])', 'input[type="text"]', 'input[type="email"]', 'input[type="password"]', 'input[type="search"]', 'input[type="tel"]', 'input[type="url"]', 'input[type="number"]', 'textarea', '[role="textbox"]'],
-                link: ['a[href]', '[role="link"]'],
-                heading: ['h1', 'h2', 'h3', 'h4', 'h5', 'h6', '[role="heading"]'],
-                checkbox: ['input[type="checkbox"]', '[role="checkbox"]'],
-                radio: ['input[type="radio"]', '[role="radio"]'],
-                combobox: ['select', '[role="combobox"]', '[role="listbox"]'],
-                listbox: ['select[multiple]', '[role="listbox"]'],
-                option: ['option', '[role="option"]'],
-                menuitem: ['[role="menuitem"]', '[role="menuitemcheckbox"]', '[role="menuitemradio"]'],
-                tab: ['[role="tab"]'],
-                dialog: ['dialog', '[role="dialog"]', '[role="alertdialog"]'],
-                alert: ['[role="alert"]'],
-                img: ['img', '[role="img"]'],
-                list: ['ul', 'ol', '[role="list"]'],
-                navigation: ['nav', '[role="navigation"]'],
-                search: ['[role="search"]', 'search'],
-                region: ['section[aria-label]', '[role="region"]'],
-                form: ['form', '[role="form"]'],
-                text: ['*'],
-                StaticText: ['*'],
-            } as Record<string, string[]>)[role]) ?? [`[role="${role}"]`];
+            const cssSelectors = selectorsForRole(role);
 
             const selectorList = cssSelectors.map((s: string) => JSON.stringify(s)).join(", ");
             const escapedName = name.replace(/\\/g, "\\\\").replace(/'/g, "\\'");
@@ -649,17 +632,7 @@ export class CdpClient {
             return `
               const selectors = [${selectorList}];
               const target = '${escapedName}';
-              function getAccessibleName(el) {
-                if (el.getAttribute('aria-label')) return el.getAttribute('aria-label').trim();
-                const labelledBy = el.getAttribute('aria-labelledby');
-                if (labelledBy) { const l = document.getElementById(labelledBy); if (l) return l.textContent?.trim() ?? ''; }
-                if (el.id) { const l = document.querySelector('label[for="' + el.id + '"]'); if (l) return l.textContent?.trim() ?? ''; }
-                if (el.placeholder) return el.placeholder.trim();
-                if (el.type === 'submit' || el.type === 'button') return (el.value ?? '').trim();
-                if (el.alt) return el.alt.trim();
-                if (el.title) return el.title.trim();
-                return el.textContent?.trim() ?? '';
-              }
+              function getAccessibleName(el) { ${ACCESSIBLE_NAME_FN_BODY} }
               const matches = [];
               for (const sel of selectors) {
                 for (const el of parent.querySelectorAll(sel)) {
@@ -687,31 +660,7 @@ export class CdpClient {
         const role = match[1]!;
         const name = match[2]!;
 
-        const roleMap: Record<string, string[]> = {
-            button: ['button', '[role="button"]', 'input[type="button"]', 'input[type="submit"]', 'input[type="reset"]'],
-            textbox: ['input:not([type])', 'input[type="text"]', 'input[type="email"]', 'input[type="password"]', 'input[type="search"]', 'input[type="tel"]', 'input[type="url"]', 'input[type="number"]', 'textarea', '[role="textbox"]'],
-            link: ['a[href]', '[role="link"]'],
-            heading: ['h1', 'h2', 'h3', 'h4', 'h5', 'h6', '[role="heading"]'],
-            checkbox: ['input[type="checkbox"]', '[role="checkbox"]'],
-            radio: ['input[type="radio"]', '[role="radio"]'],
-            combobox: ['select', '[role="combobox"]', '[role="listbox"]'],
-            listbox: ['select[multiple]', '[role="listbox"]'],
-            option: ['option', '[role="option"]'],
-            menuitem: ['[role="menuitem"]', '[role="menuitemcheckbox"]', '[role="menuitemradio"]'],
-            tab: ['[role="tab"]'],
-            dialog: ['dialog', '[role="dialog"]', '[role="alertdialog"]'],
-            alert: ['[role="alert"]'],
-            img: ['img', '[role="img"]'],
-            list: ['ul', 'ol', '[role="list"]'],
-            navigation: ['nav', '[role="navigation"]'],
-            search: ['[role="search"]', 'search'],
-            region: ['section[aria-label]', '[role="region"]'],
-            form: ['form', '[role="form"]'],
-            text: ['*'],
-            StaticText: ['*'],
-        };
-
-        const cssSelectors = roleMap[role] ?? [`[role="${role}"]`];
+        const cssSelectors = selectorsForRole(role);
         const selectorList = cssSelectors.map((s: string) => JSON.stringify(s)).join(", ");
         const escapedName = name.replace(/\\/g, "\\\\").replace(/'/g, "\\'");
         const usePartial = role === "text" || role === "StaticText";
@@ -724,23 +673,7 @@ export class CdpClient {
         const selectors = [${selectorList}];
         const target = '${escapedName}';
 
-        function getAccessibleName(el) {
-          if (el.getAttribute('aria-label')) return el.getAttribute('aria-label').trim();
-          const labelledBy = el.getAttribute('aria-labelledby');
-          if (labelledBy) {
-            const label = document.getElementById(labelledBy);
-            if (label) return label.textContent?.trim() ?? '';
-          }
-          if (el.id) {
-            const label = document.querySelector('label[for="' + el.id + '"]');
-            if (label) return label.textContent?.trim() ?? '';
-          }
-          if (el.placeholder) return el.placeholder.trim();
-          if (el.type === 'submit' || el.type === 'button') return (el.value ?? '').trim();
-          if (el.alt) return el.alt.trim();
-          if (el.title) return el.title.trim();
-          return el.textContent?.trim() ?? '';
-        }
+        function getAccessibleName(el) { ${ACCESSIBLE_NAME_FN_BODY} }
 
         const matches = [];
         for (const sel of selectors) {

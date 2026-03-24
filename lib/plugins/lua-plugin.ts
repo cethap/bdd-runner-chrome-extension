@@ -87,6 +87,7 @@ export class LuaPlugin implements Plugin {
           response: null,
           prints: [],
           signal: new AbortController().signal,
+          browser: null,
         };
         bridge.execute(script.code, loadCtx);
       } catch (err) {

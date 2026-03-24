@@ -1006,6 +1006,32 @@ body {
   animation: pulse 1s ease-in-out infinite;
 }
 
+/* ── Recorder mode buttons ── */
+.toolbar-modes {
+  display: flex;
+  gap: 2px;
+  margin-left: 2px;
+}
+
+.toolbar-btn.mode-btn {
+  font-size: 12px;
+  padding: 2px 6px;
+  min-width: 24px;
+  border-color: var(--border);
+  color: var(--text-secondary);
+}
+
+.toolbar-btn.mode-btn:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.toolbar-btn.mode-btn.mode-active {
+  background: var(--accent);
+  color: var(--bg-primary);
+  border-color: var(--accent);
+}
+
 /* ── Responsive: narrow panels ── */
 @media (max-width: 400px) {
   .tab-btn {

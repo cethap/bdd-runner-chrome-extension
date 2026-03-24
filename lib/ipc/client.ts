@@ -1,4 +1,5 @@
 import type { ClientMessage, ServerMessage } from "./messages";
+import type { RecorderMode } from "@/lib/recorder/types";
 
 export type MessageHandler = (message: ServerMessage) => void;
 
@@ -46,5 +47,9 @@ export class IpcClient {
 
   stopRecording(): void {
     this.send({ type: "record:stop" });
+  }
+
+  switchRecorderMode(mode: RecorderMode): void {
+    this.send({ type: "recorder:mode", mode });
   }
 }

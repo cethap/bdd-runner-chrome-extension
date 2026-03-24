@@ -1,4 +1,4 @@
-import type { ClientMessage, ServerMessage } from "./messages";
+import type { ClientMessage, ContentMessage, ServerMessage } from "./messages";
 import type { ExecutionContext } from "@/lib/engine/types";
 import { parseGherkin } from "@/lib/parser/gherkin-parser";
 import { executeFeature } from "@/lib/engine/executor";
@@ -58,8 +58,15 @@ export class IpcServer {
     });
 
     // Listen for messages from content scripts (recorder)
-    chrome.runtime.onMessage.addListener((message, sender) => {
-      if (message.type === "record:step" && this.activePort) {
+    chrome.runtime.onMessage.addListener((message: ContentMessage, sender) => {
+      if (!this.activePort) return;
+
+      // Relay content script messages to sidepanel
+      if (
+        message.type === "record:step" ||
+        message.type === "recorder:inspected" ||
+        message.type === "recorder:alternatives"
+      ) {
         try {
           this.activePort.postMessage(message);
         } catch {
@@ -126,6 +133,9 @@ export class IpcServer {
         break;
       case "record:stop":
         await this.handleRecordStop();
+        break;
+      case "recorder:mode":
+        await this.handleRecorderMode(message.mode);
         break;
     }
   }
@@ -296,6 +306,14 @@ export class IpcServer {
         // Content script might not be ready
       });
       this.recordingTabId = null;
+    }
+  }
+
+  private async handleRecorderMode(mode: string): Promise<void> {
+    if (this.recordingTabId) {
+      chrome.tabs.sendMessage(this.recordingTabId, { type: "recorder:mode", mode }).catch(() => {
+        // Content script might not be ready
+      });
     }
   }
 }

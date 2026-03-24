@@ -1,6 +1,8 @@
 import type { StepResult, FeatureResult } from "@/lib/engine/types";
 import type { ParseError } from "@/lib/parser/types";
 import type { LuaScript } from "@/lib/lua/types";
+import type { RecorderMode } from "@/lib/recorder/types";
+import type { SelectorCandidate } from "@/lib/a11y/types";
 
 // Messages from side panel → background
 export type ClientMessage =
@@ -14,7 +16,14 @@ export type ClientMessage =
   | { type: "lua:reload" }
   | { type: "record:start" }
   | { type: "record:stop" }
-  | { type: "record:step"; step: string };
+  | { type: "record:step"; step: string }
+  | { type: "recorder:mode"; mode: RecorderMode };
+
+// Messages from content script → background (relayed to sidepanel)
+export type ContentMessage =
+  | { type: "record:step"; step: string }
+  | { type: "recorder:inspected"; selector: string; alternatives: SelectorCandidate[] }
+  | { type: "recorder:alternatives"; candidates: SelectorCandidate[] };
 
 // Messages from background → side panel
 export type ServerMessage =
@@ -32,4 +41,6 @@ export type ServerMessage =
   | { type: "lua:toggled"; id: string; enabled: boolean }
   | { type: "lua:toggled"; id: string; enabled: boolean }
   | { type: "lua:error"; error: string }
-  | { type: "record:step"; step: string; isFirst?: boolean };
+  | { type: "record:step"; step: string; isFirst?: boolean }
+  | { type: "recorder:inspected"; selector: string; alternatives: SelectorCandidate[] }
+  | { type: "recorder:alternatives"; candidates: SelectorCandidate[] };

@@ -64,6 +64,27 @@ export function getBrowserStepDefinitions(
             source: "browser-plugin",
         },
 
+        // ── browser switch to frame '<selector>' ─────────────────
+        {
+            pattern: /^browser\s+switch\s+to\s+frame\s+(.+)$/,
+            handler: async (ctx, match) => {
+                const selector = resolveVariables(unquote(match.groups[0]!), ctx);
+                await getClient(ctx).switchToFrame(selector);
+            },
+            description: "Switch to an iframe by selector",
+            source: "browser-plugin",
+        },
+
+        // ── browser switch to main frame ─────────────────────────
+        {
+            pattern: /^browser\s+switch\s+to\s+main\s+frame$/,
+            handler: async (ctx) => {
+                await getClient(ctx).switchToMainFrame();
+            },
+            description: "Switch back to the top-level frame",
+            source: "browser-plugin",
+        },
+
         // ── browser click '<selector>' ───────────────────────────
         {
             pattern: /^browser\s+click\s+(.+)$/,
@@ -84,6 +105,40 @@ export function getBrowserStepDefinitions(
                 await getClient(ctx).fill(selector, value);
             },
             description: "Type text into an input element",
+            source: "browser-plugin",
+        },
+
+        // ── browser text '<selector>' should be '<text>' ──────────
+        {
+            pattern: /^browser\s+text\s+(.+?)\s+should\s+be\s+(.+)$/,
+            handler: async (ctx, match) => {
+                const selector = resolveVariables(unquote(match.groups[0]!), ctx);
+                const expected = resolveVariables(unquote(match.groups[1]!), ctx);
+                const actual = await getClient(ctx).getText(selector);
+                if (actual !== expected) {
+                    throw new Error(
+                        `Expected text "${expected}" but got "${actual}"`,
+                    );
+                }
+            },
+            description: "Assert element text equals expected value",
+            source: "browser-plugin",
+        },
+
+        // ── browser value '<selector>' should be '<value>' ────────
+        {
+            pattern: /^browser\s+value\s+(.+?)\s+should\s+be\s+(.+)$/,
+            handler: async (ctx, match) => {
+                const selector = resolveVariables(unquote(match.groups[0]!), ctx);
+                const expected = resolveVariables(unquote(match.groups[1]!), ctx);
+                const actual = await getClient(ctx).getValue(selector);
+                if (actual !== expected) {
+                    throw new Error(
+                        `Expected value "${expected}" but got "${actual}"`,
+                    );
+                }
+            },
+            description: "Assert input/select/textarea value equals expected",
             source: "browser-plugin",
         },
 

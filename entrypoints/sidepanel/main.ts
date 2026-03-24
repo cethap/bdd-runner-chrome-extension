@@ -260,6 +260,10 @@ const toolbar = new Toolbar(document.getElementById("toolbar")!, {
       ipc.stopRecording();
     }
   },
+  onModeChange: (mode) => {
+    ipc.switchRecorderMode(mode);
+    toolbar.setActiveMode(mode);
+  },
 });
 
 // ── File Manager ───────────────────────────────────────────
@@ -408,18 +412,44 @@ ipc.onMessage((msg) => {
     case "record:step": {
       if (!store.getState().recording) return;
 
-      const currentContent = editor.getContent();
+      let currentContent = editor.getContent();
       // Ensure we append to a new line
       const prefix = currentContent.endsWith("\n") ? "" : "\n";
       // Use 'Given' for the first step (URL open), 'And' for the rest
       const keyword = msg.isFirst ? "Given" : "And";
-      const stepLine = `    ${keyword} ${msg.step}`;
 
-      const newContent = `${currentContent}${prefix}${stepLine}`;
+      // If step comes from an iframe, insert a frame switch step first
+      const frameSelector = (msg as any).frameSelector as string | undefined;
+      if (frameSelector) {
+        const switchStep = `    And browser switch to frame '${frameSelector}'`;
+        // Only add if not already the last frame switch
+        if (!currentContent.trimEnd().endsWith(switchStep.trim())) {
+          currentContent = `${currentContent}${prefix}${switchStep}`;
+        }
+      } else {
+        // If we were in a frame and now we're back to top, switch to main
+        const lines = currentContent.split("\n");
+        const lastFrameLine = lines.findLast((l: string) => l.includes("browser switch to frame"));
+        const lastMainLine = lines.findLast((l: string) => l.includes("browser switch to main frame"));
+        if (lastFrameLine && (!lastMainLine || lines.indexOf(lastMainLine) < lines.indexOf(lastFrameLine))) {
+          currentContent = `${currentContent}${prefix}    And browser switch to main frame`;
+        }
+      }
+
+      const stepLine = `    ${keyword} ${msg.step}`;
+      const newContent = `${currentContent}${currentContent === editor.getContent() ? prefix : "\n"}${stepLine}`;
       editor.setContent(newContent);
       store.setState({ content: newContent, dirty: true });
       break;
     }
+
+    case "recorder:inspected":
+      console.log("[Recorder] Inspected:", msg.selector, msg.alternatives);
+      break;
+
+    case "recorder:alternatives":
+      console.log("[Recorder] Alternatives:", msg.candidates);
+      break;
   }
 });
 

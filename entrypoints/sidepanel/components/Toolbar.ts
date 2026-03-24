@@ -1,3 +1,5 @@
+import type { RecorderMode } from "@/lib/recorder/types";
+
 export type ToolbarCallbacks = {
   onRun: () => void;
   onStop: () => void;
@@ -6,7 +8,21 @@ export type ToolbarCallbacks = {
   onToggleFiles: () => void;
   onToggleScripts: () => void;
   onRecord: () => void;
+  onModeChange: (mode: RecorderMode) => void;
 };
+
+type ModeButton = {
+  mode: RecorderMode;
+  label: string;
+  title: string;
+};
+
+const MODE_BUTTONS: ModeButton[] = [
+  { mode: "inspecting", label: "\uD83D\uDD0D", title: "Inspect element" },
+  { mode: "assert-text", label: "T", title: "Assert text content" },
+  { mode: "assert-visibility", label: "\uD83D\uDC41", title: "Assert visible" },
+  { mode: "assert-value", label: "=", title: "Assert input value" },
+];
 
 export class Toolbar {
   private container: HTMLElement;
@@ -15,6 +31,9 @@ export class Toolbar {
   private recordBtn!: HTMLButtonElement;
   private saveBtn!: HTMLButtonElement;
   private fileNameEl!: HTMLSpanElement;
+  private modeContainer!: HTMLDivElement;
+  private modeBtns: Map<RecorderMode, HTMLButtonElement> = new Map();
+  private activeMode: RecorderMode = "recording";
 
   constructor(container: HTMLElement, callbacks: ToolbarCallbacks) {
     this.container = container;
@@ -47,6 +66,23 @@ export class Toolbar {
 
     this.recordBtn = this.createButton("\u25CF Rec", "toolbar-btn record", cb.onRecord);
     this.container.appendChild(this.recordBtn);
+
+    // Mode buttons container (hidden until recording)
+    this.modeContainer = document.createElement("div");
+    this.modeContainer.className = "toolbar-modes";
+    this.modeContainer.style.display = "none";
+
+    for (const { mode, label, title } of MODE_BUTTONS) {
+      const btn = this.createButton(label, "toolbar-btn mode-btn", () => {
+        cb.onModeChange(mode);
+      });
+      btn.title = title;
+      btn.dataset.mode = mode;
+      this.modeBtns.set(mode, btn);
+      this.modeContainer.appendChild(btn);
+    }
+
+    this.container.appendChild(this.modeContainer);
 
     this.fileNameEl = document.createElement("span");
     this.fileNameEl.className = "toolbar-filename";
@@ -82,6 +118,23 @@ export class Toolbar {
     this.recordBtn.classList.toggle("recording", recording);
     this.recordBtn.textContent = recording ? "\u25A0 Stop Rec" : "\u25CF Rec";
     this.runBtn.disabled = recording;
+    // Show/hide mode buttons based on recording state
+    this.modeContainer.style.display = recording ? "flex" : "none";
+    if (!recording) {
+      this.activeMode = "recording";
+      this.updateModeHighlight();
+    }
+  }
+
+  setActiveMode(mode: RecorderMode): void {
+    this.activeMode = mode;
+    this.updateModeHighlight();
+  }
+
+  private updateModeHighlight(): void {
+    for (const [btnMode, btn] of this.modeBtns) {
+      btn.classList.toggle("mode-active", btnMode === this.activeMode);
+    }
   }
 
   setFileName(name: string, dirty: boolean): void {
